@@ -46,3 +46,10 @@ def enable_logging(log_filename, logging_level=logging.DEBUG):
         level=logging_level,
         filename=os.path.join(LOGS_DIR, log_filename)
     )
+
+
+ID_COL = 'textID'
+TEXT_COL = 'text'
+TOKENS_COL = 'tokens'
+SELECTED_TEXT_COL = 'selected_text'
+TARGET_COL = 'target'
