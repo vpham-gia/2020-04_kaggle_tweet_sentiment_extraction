@@ -11,7 +11,11 @@ import logging
 # By default the data is stored in this repository's "data/" folder.
 # You can change it in your own settings file.
 REPO_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
+
 DATA_DIR = os.path.join(REPO_DIR, 'data')
+RAW_DATA_DIR = os.path.join(DATA_DIR, 'raw')
+PROCESSED_DATA_DIR = os.path.join(DATA_DIR, 'processed')
+
 OUTPUTS_DIR = os.path.join(REPO_DIR, 'outputs')
 LOGS_DIR = os.path.join(REPO_DIR, 'logs')
 
