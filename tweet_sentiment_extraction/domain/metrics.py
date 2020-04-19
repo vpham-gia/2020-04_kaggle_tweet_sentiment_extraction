@@ -16,7 +16,7 @@ def jaccard_score(y_true, y_pred):
     try:
         assert(len(y_true) == len(y_pred))
 
-        jaccard_vector = [_jaccard(str1=str(true), str2=str(pred)) for true, pred in zip(y_true, y_pred)]
+        jaccard_vector = [_jaccard(str1=true, str2=pred) for true, pred in zip(y_true, y_pred)]
         jaccard_score = np.mean(jaccard_vector)
         return jaccard_score
     except AssertionError:

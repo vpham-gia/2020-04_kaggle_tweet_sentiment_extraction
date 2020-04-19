@@ -1,39 +1,37 @@
 """Baseline model is the cleaned up text."""
 from os.path import join
 
+import pandas as pd
+
 from tweet_sentiment_extraction.domain.metrics import jaccard_score
 from tweet_sentiment_extraction.domain.text_selector import TextSelector
 from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentenceCleaner
 
 import tweet_sentiment_extraction.settings as stg
 
-train_with_tokens = (
-    SentenceCleaner(filename='train.csv').add_tokenized_column()
-    .rename(columns={'selected_text': 'target'})
-)
+train = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv'))
+validation = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'validation.csv'))
+test = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'test.csv'))
 
-train_with_predictions = TextSelector(df=train_with_tokens).add_pred_from_tokens_col()
+train_tokens = SentenceCleaner.add_tokenized_column(df=train)\
+                              .dropna()\
+                              .rename(columns={'selected_text': 'target'})
+train_predictions = TextSelector.add_pred_from_tokens_col(df=train_tokens)
 
-train_score = jaccard_score(y_true=train_with_predictions['target'],
-                            y_pred=train_with_predictions['selected_text'])
+train_score = jaccard_score(y_true=train_predictions['target'],
+                            y_pred=train_predictions['selected_text'])
 print(f'Train score: {train_score}')
 
-validation_with_tokens = (
-    SentenceCleaner(filename='validation.csv').add_tokenized_column()
-    .rename(columns={'selected_text': 'target'})
-)
+validation_tokens = SentenceCleaner.add_tokenized_column(df=validation)\
+                                   .dropna()\
+                                   .rename(columns={'selected_text': 'target'})
+validation_predictions = TextSelector.add_pred_from_tokens_col(df=validation_tokens)
 
-validation_with_predictions = TextSelector(df=validation_with_tokens).add_pred_from_tokens_col()
-
-validation_score = jaccard_score(y_true=validation_with_predictions['target'],
-                                 y_pred=validation_with_predictions['selected_text'])
+validation_score = jaccard_score(y_true=validation_predictions['target'],
+                                 y_pred=validation_predictions['selected_text'])
 print(f'Validation score: {validation_score}')
 
-test_with_tokens = (
-    SentenceCleaner(filename='test.csv').add_tokenized_column()
-)
-
-test_with_predictions = TextSelector(df=test_with_tokens).add_pred_from_tokens_col()
-
-test_with_predictions.filter(items=[stg.ID_COL, stg.SELECTED_TEXT_COL])\
-                     .to_csv(join(stg.OUTPUTS_DIR, 'baseline.csv'), index=False)
+test_tokens = SentenceCleaner.add_tokenized_column(df=test)
+test_predictions = TextSelector.add_pred_from_tokens_col(df=test_tokens)
+test_predictions.filter(items=[stg.ID_COL, stg.SELECTED_TEXT_COL])\
+                .to_csv(join(stg.OUTPUTS_DIR, 'baseline.csv'), index=False)

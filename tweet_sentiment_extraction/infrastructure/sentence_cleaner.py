@@ -5,44 +5,36 @@ Class
 SentenceCleaner
 
 """
-from os.path import join
-
-import pandas as pd
-
 import tweet_sentiment_extraction.settings as stg
 
 
 class SentenceCleaner:
-    """Class to perform technical cleaning.
-
-    Attributes
-    ----------
-    data: pandas.DataFrame
+    """Performs technical cleaning.
 
     Methods
     -------
-    add_tokenized_column()
+    add_tokenized_column(df)
         Add column with sentence converted in tokens.
     """
 
-    def __init__(self, filename):
-        self.data = pd.read_csv(join(stg.PROCESSED_DATA_DIR, filename))
-
-    def add_tokenized_column(self):
+    @classmethod
+    def add_tokenized_column(self, df):
         """Add column with sentence converted in tokens.
+
+        Parameters
+        ----------
+        df: pandas.dataFrame
 
         Returns
         -------
         df_with_tokens: pandas.DataFrame
         """
-        df_with_tokens = self.data.assign(**{
-            stg.TOKENS_COL: lambda df: df[stg.TEXT_COL].apply(lambda x: str(x).split())}
-        )
-
+        df_with_tokens = df.assign(**{stg.TOKENS_COL: lambda df: df[stg.TEXT_COL].apply(lambda x: str(x).split())})
         return df_with_tokens
 
 
 if __name__ == '__main__':
-    sc = SentenceCleaner(filename='train.csv')
-
-    df = sc.add_tokenized_column()
+    import pandas as pd
+    from os.path import join
+    train = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv'))
+    clean = SentenceCleaner.add_tokenized_column(df=train)
