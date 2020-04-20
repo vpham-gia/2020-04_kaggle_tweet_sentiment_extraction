@@ -1,4 +1,5 @@
-"""
+"""Basic settings of the project.
+
 Contains all configurations for the projectself.
 Should NOT contain any secrets.
 
@@ -50,6 +51,21 @@ def enable_logging(log_filename, logging_level=logging.DEBUG):
 
 ID_COL = 'textID'
 TEXT_COL = 'text'
-TOKENS_COL = 'tokens'
+SENTIMENT_COL = 'sentiment'
 SELECTED_TEXT_COL = 'selected_text'
+
+TOKENS_TEXT_COL = f'tokens_{TEXT_COL}'
+TOKENS_SELECTED_TEXT_COL = f'tokens_{SELECTED_TEXT_COL}'
+WORD_COL = 'word_in_sentence'
+POSITION_IN_SENTENCE_COL = 'word_position_in_sentence'
+
+SENTIMENT_ENCODING = {
+    'negative': -1,
+    'neutral': 0,
+    'positive': 1
+}
+
+WORD_ENCODING_COL = 'word_encoding'
+PREFIX_WORD_ENCODING_COL = 'word_enc'
+
 TARGET_COL = 'target'
