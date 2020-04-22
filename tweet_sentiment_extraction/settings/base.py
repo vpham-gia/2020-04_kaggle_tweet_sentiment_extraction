@@ -16,6 +16,7 @@ REPO_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
 DATA_DIR = os.path.join(REPO_DIR, 'data')
 RAW_DATA_DIR = os.path.join(DATA_DIR, 'raw')
 PROCESSED_DATA_DIR = os.path.join(DATA_DIR, 'processed')
+ML_DATA_DIR = os.path.join(DATA_DIR, 'ml-ready')
 
 OUTPUTS_DIR = os.path.join(REPO_DIR, 'outputs')
 LOGS_DIR = os.path.join(REPO_DIR, 'logs')
