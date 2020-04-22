@@ -66,6 +66,13 @@ SENTIMENT_ENCODING = {
 }
 
 WORD_ENCODING_COL = 'word_encoding'
-PREFIX_WORD_ENCODING_COL = 'word_enc'
+# PREFIX_WORD_ENCODING_COL = 'word_enc'
 
-TARGET_COL = 'target'
+ML_FEATURES_COL = 'features'
+ML_TARGET_COL = 'target'
+ML_PRED_COL = 'ml_pred'
+ML_TARGET_COL = 'ml_target'
+
+TOKENS_PRED_COL = 'tokens_sentence_pred'
+SENTENCE_PRED_COL = 'sentence_pred'
+SENTENCE_TARGET_COL = 'sentence_target'

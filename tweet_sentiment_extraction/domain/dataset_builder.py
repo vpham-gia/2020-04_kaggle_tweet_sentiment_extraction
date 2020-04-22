@@ -5,16 +5,106 @@ Classes
 Featurizer
 SentencePreprocessor
 """
+import numpy as np
 import pandas as pd
 import spacy
 
 from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentenceCleaner
+from tweet_sentiment_extraction.utils.decorators import timer
 
 import tweet_sentiment_extraction.settings as stg
 
 
+class DatasetCreator:
+    """Creates ML-ready dataset.
+
+    Attributes
+    ----------
+    df: pandas.DataFrame
+        Initial dataframe to be preprocessed to extract features and target (optional)
+    bool_train_mode: boolean
+
+    Methods
+    -------
+    build_dataset()
+
+    Properties
+    ----------
+    df_features
+    df_target_tokens
+
+    """
+
+    def __init__(self, df, bool_train_mode):
+        """Initialize class."""
+        self.df = df
+        self.bool_train_mode = bool_train_mode
+
+    @timer
+    def build_dataset(self):
+        """Build dataset.
+
+        Returns
+        -------
+        dataset: pandas.DataFrame
+        """
+        if self.bool_train_mode:
+            feats = self.df_features.dropna(subset=[stg.WORD_COL])
+            target_tokens = self.df_target_tokens
+
+            dataset = pd.merge(left=feats, right=target_tokens, on=stg.ID_COL, how='left')\
+                        .assign(**{
+                            stg.ML_TARGET_COL: lambda df: df.apply(
+                                lambda x: x[stg.WORD_COL] in x[stg.TOKENS_SELECTED_TEXT_COL], axis=1)
+                        })
+        else:
+            dataset = self.df_features
+
+        return dataset
+
+    @property
+    def df_features(self):
+        """Compute features.
+
+        Returns
+        -------
+        df_features: pandas.DataFrame
+        """
+        sentences_pivoted = SentencePreprocessor.pivot_sentence_in_column(df=self.df)
+
+        df_sentiment_column_encoded = Featurizer.encode_sentiment_column(df=sentences_pivoted)
+        df_with_word_vector = Featurizer.encode_word_to_vector(df=df_sentiment_column_encoded)
+
+        # TODO: fix the apply(, axis=1) - uggly but works
+        df_features = df_with_word_vector.assign(**{
+            stg.ML_FEATURES_COL: lambda df: df.apply(lambda x: np.append(arr=x[stg.WORD_ENCODING_COL],
+                                                                         values=x[stg.SENTIMENT_COL]), axis=1)
+        }).filter(items=[stg.ID_COL, stg.POSITION_IN_SENTENCE_COL, stg.WORD_COL, stg.ML_FEATURES_COL])
+
+        return df_features
+
+    @property
+    def df_target_tokens(self):
+        """Compute target tokens.
+
+        Returns
+        -------
+        df_target: pandas.DataFrame
+        """
+        df_target = SentencePreprocessor.compute_target_tokens(df=self.df)
+        return df_target
+
+
 class Featurizer:
-    """Creates features from sentiment and word_in_sentence columns."""
+    """Creates features from sentiment and word_in_sentence columns.
+
+    Methods
+    -------
+    encode_sentiment_column(df)
+        Encode sentiment to {-1, 0, 1}.
+    encode_word_to_vector(df)
+        Encode word to vector using spacy models.
+    """
 
     @classmethod
     def encode_sentiment_column(cls, df):
@@ -62,13 +152,35 @@ class Featurizer:
 
 
 class SentencePreprocessor:
-    """Preprocess sentences to get one word by row (with duplication of textID x sentiment).
+    """Preprocesses sentences.
+
+    Preprocessing includes:
+    * Collection of target tokens by textID
+    * Pivot of sentences to get one word by row (with duplication of textID x sentiment).
 
     Methods
     -------
     pivot_sentence_in_column(df)
         Creates one row by word of a sentence with repetition of textID and sentiment.
     """
+
+    @classmethod
+    def compute_target_tokens(cls, df):
+        """Compute target tokens by textID.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+
+        Returns
+        -------
+        df_target: pandas.DataFrame
+        """
+        df_with_target_tokens = SentenceCleaner.add_tokenized_column(df=df,
+                                                                     column_name_to_tokenize=stg.SELECTED_TEXT_COL)
+        df_target = df_with_target_tokens.filter(items=[stg.ID_COL, stg.TOKENS_SELECTED_TEXT_COL])
+
+        return df_target
 
     @classmethod
     def pivot_sentence_in_column(cls, df):
@@ -111,22 +223,16 @@ if __name__ == '__main__':
     from os.path import join
     df = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv'))
 
-    a = SentencePreprocessor.pivot_sentence_in_column(df=df)
+    a = DatasetCreator(df=df.head(10), bool_train_mode=True)
+    toto = a.build_dataset()
 
-    from datetime import datetime as dt
-    start = dt.now()
-    b = Featurizer.encode_sentiment_column(df=a)
-    end = dt.now()
-    print(f'Total sentiment encoding time: {end - start}')
-
-    start = dt.now()
-    c = Featurizer.encode_word_to_vector(df=a)
-    end = dt.now()
-    print(f'Total word encoding time: {end - start}')
-
-    # nlp = spacy.load('en_core_web_md')
-    # print('Loaded')
+    # from datetime import datetime as dt
     # start = dt.now()
-    # word_encoding = list(nlp.pipe(a['word_in_sentence'].unique(), n_process=3))
+    # b = Featurizer.encode_sentiment_column(df=a)
+    # end = dt.now()
+    # print(f'Total sentiment encoding time: {end - start}')
+
+    # start = dt.now()
+    # c = Featurizer.encode_word_to_vector(df=a)
     # end = dt.now()
     # print(f'Total word encoding time: {end - start}')
