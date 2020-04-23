@@ -20,10 +20,10 @@ test = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'test.csv'))
 train_dataset = DatasetCreator(df=train, bool_train_mode=True).build_dataset()
 
 rf = RandomForestClassifier(n_estimators=100, n_jobs=3)
-rf.fit(X=[x for x in train_dataset[stg.ML_FEATURES_COL]], y=train_dataset[stg.ML_TARGET_COL])
+rf.fit(X=train_dataset[stg.ML_FEATURES_COL], y=train_dataset[stg.ML_TARGET_COL])
 
 train_dataset_with_ml_pred = train_dataset.assign(**{
-    stg.ML_PRED_COL: lambda df: rf.predict(X=[x for x in df[stg.ML_FEATURES_COL]])
+    stg.ML_PRED_COL: lambda df: rf.predict(X=df[stg.ML_FEATURES_COL])
 })
 
 train_with_tokens_from_ml = sc.compute_tokens_from_ml_predictions(df=train_dataset_with_ml_pred)
@@ -43,7 +43,7 @@ print('--------------------------')
 validation_dataset = DatasetCreator(df=validation, bool_train_mode=False).build_dataset()
 
 validation_dataset_with_ml_pred = validation_dataset.assign(**{
-    stg.ML_PRED_COL: lambda df: rf.predict(X=[x for x in df[stg.ML_FEATURES_COL]])
+    stg.ML_PRED_COL: lambda df: rf.predict(X=df[stg.ML_FEATURES_COL])
 })
 
 validation_with_tokens_from_ml = sc.compute_tokens_from_ml_predictions(df=validation_dataset_with_ml_pred)

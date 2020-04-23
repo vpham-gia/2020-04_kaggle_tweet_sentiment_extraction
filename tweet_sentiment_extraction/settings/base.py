@@ -67,10 +67,9 @@ SENTIMENT_ENCODING = {
 }
 
 WORD_ENCODING_COL = 'word_encoding'
-# PREFIX_WORD_ENCODING_COL = 'word_enc'
+PREFIX_SPACY_ENCODING_COL = 'spacy_enc'
 
-ML_FEATURES_COL = 'features'
-ML_TARGET_COL = 'target'
+ML_FEATURES_COL = [f'{PREFIX_SPACY_ENCODING_COL}_{x}' for x in range(0, 300)] + [SENTIMENT_COL]
 ML_PRED_COL = 'ml_pred'
 ML_TARGET_COL = 'ml_target'
 

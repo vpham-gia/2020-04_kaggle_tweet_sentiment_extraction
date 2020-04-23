@@ -75,11 +75,8 @@ class DatasetCreator:
         df_sentiment_column_encoded = Featurizer.encode_sentiment_column(df=sentences_pivoted)
         df_with_word_vector = Featurizer.encode_word_to_vector(df=df_sentiment_column_encoded)
 
-        # TODO: fix the apply(, axis=1) - uggly but works
-        df_features = df_with_word_vector.assign(**{
-            stg.ML_FEATURES_COL: lambda df: df.apply(lambda x: np.append(arr=x[stg.WORD_ENCODING_COL],
-                                                                         values=x[stg.SENTIMENT_COL]), axis=1)
-        }).filter(items=[stg.ID_COL, stg.POSITION_IN_SENTENCE_COL, stg.WORD_COL, stg.ML_FEATURES_COL])
+        df_features = df_with_word_vector.filter(items=[stg.ID_COL, stg.POSITION_IN_SENTENCE_COL, stg.WORD_COL] +
+                                                 stg.ML_FEATURES_COL)
 
         return df_features
 
@@ -145,7 +142,12 @@ class Featurizer:
             stg.WORD_ENCODING_COL: [word.vector for word in spacy_unique_words]
         })
 
-        df_with_word_encoding = pd.merge(left=df, right=df_word_encoding,
+        df_encoding_split = (
+            df_word_encoding[stg.WORD_ENCODING_COL].apply(pd.Series)
+                                                   .rename(columns=lambda x: f'{stg.PREFIX_SPACY_ENCODING_COL}_{x}')
+        )
+
+        df_with_word_encoding = pd.merge(left=df, right=pd.concat([df_word_encoding, df_encoding_split], axis=1),
                                          on=stg.WORD_COL, how='left')
 
         return df_with_word_encoding
@@ -232,7 +234,9 @@ if __name__ == '__main__':
     # end = dt.now()
     # print(f'Total sentiment encoding time: {end - start}')
 
+    # from datetime import datetime as dt
     # start = dt.now()
+    # a = SentencePreprocessor.pivot_sentence_in_column(df=df.head(10))
     # c = Featurizer.encode_word_to_vector(df=a)
     # end = dt.now()
     # print(f'Total word encoding time: {end - start}')
