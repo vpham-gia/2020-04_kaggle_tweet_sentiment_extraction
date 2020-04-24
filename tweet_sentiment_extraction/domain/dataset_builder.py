@@ -75,8 +75,9 @@ class DatasetCreator:
         df_sentiment_column_encoded = Featurizer.encode_sentiment_column(df=sentences_pivoted)
         df_with_word_vector = Featurizer.encode_word_to_vector(df=df_sentiment_column_encoded)
 
-        df_features = df_with_word_vector.filter(items=[stg.ID_COL, stg.POSITION_IN_SENTENCE_COL, stg.WORD_COL] +
-                                                 stg.ML_FEATURES_COL)
+        df_features = df_with_word_vector.filter(
+            items=[stg.ID_COL, stg.POSITION_IN_SENTENCE_COL, stg.WORD_COL] + stg.ML_FEATURES_COL
+        )
 
         return df_features
 
