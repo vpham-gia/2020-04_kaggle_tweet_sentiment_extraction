@@ -27,10 +27,12 @@ def generate_save_machine_learning_datasets(suffix=''):
     validation = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'validation.csv'))
 
     train_dataset = DatasetCreator(df=train, bool_train_mode=True).build_dataset()
-    validation_dataset = DatasetCreator(df=validation, bool_train_mode=False).build_dataset()
-
     train_dataset.to_csv(join(stg.ML_DATA_DIR, f'ml_train_{suffix}.csv'), index=False)
+    print('ok train_dataset')
+
+    validation_dataset = DatasetCreator(df=validation, bool_train_mode=False).build_dataset()
     validation_dataset.to_csv(join(stg.ML_DATA_DIR, f'ml_validation_{suffix}.csv'), index=False)
+    print('ok validation_dataset')
 
 
 if __name__ == "__main__":

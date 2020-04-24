@@ -2,7 +2,7 @@
 name = "tweet_sentiment_extraction"
 version = "0.1.0"
 description = ""
-authors = ["Vinh Pham-Gia <vinhpg45@gmail.com>"]
+authors = ["Alexandra Lorenzo de Brionne", "Benoit Lebreton", "Vinh Pham-Gia"]
 
 [tool.poetry.dependencies]
 python = "^3.7"
