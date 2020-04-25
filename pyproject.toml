@@ -10,9 +10,9 @@ pandas = "^1.0.3"
 python-dotenv = "^0.13.0"
 sklearn = "^0.0"
 spacy = "^2.2.4"
-en_core_web_md = {url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-2.2.5/en_core_web_md-2.2.5.tar.gz"}
 torch = "^1.5.0"
 gensim = "^3.8.2"
+tqdm = "^4.45.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^4.6"

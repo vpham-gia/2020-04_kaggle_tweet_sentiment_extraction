@@ -12,6 +12,7 @@ Following command lines could be used to setup the project.
 ```
 $ git clone git@github.com:vpham-gia/2020-04_kaggle_tweet_sentiment_extraction.git
 $ poetry install  # Install virtual environment with packages from poetry.lock file
+$ python -m spacy download en_core_web_md
 ```
 
 In order to use `settings` folder accordingly, one must copy `settings/.env_template` to `settings/.env` and fill `TWEET_SE_SETTINGS_MODULE` variable.
@@ -33,7 +34,7 @@ $ poetry env info
 
 Install from `poetry.lock` file that already exists
 ```
-poetry install
+poetry install --no-root # --no-root option skips installation of the project package
 ```
 
 Update the latest versions of the dependencies and update `poetry.lock` file
