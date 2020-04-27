@@ -174,6 +174,8 @@ def reformat_pred(df, predictions):
 
         padding_value = MAX_LEN - len(df[i][1])
         pred_value = np.array(predictions[i][padding_value:].flatten(), dtype=bool)
+        if not any(pred_value) == True:  # if prediction is empty
+            pred_value[pred_value == False] = True
         text_value = np.array(df[i][0])
 
         result_tolist = text_value[pred_value].tolist()
