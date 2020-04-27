@@ -17,6 +17,7 @@ DATA_DIR = os.path.join(REPO_DIR, 'data')
 RAW_DATA_DIR = os.path.join(DATA_DIR, 'raw')
 PROCESSED_DATA_DIR = os.path.join(DATA_DIR, 'processed')
 ML_DATA_DIR = os.path.join(DATA_DIR, 'ml-ready')
+WORD_EMBEDDING_DIR = os.path.join(DATA_DIR, 'word_embeddings')
 
 OUTPUTS_DIR = os.path.join(REPO_DIR, 'outputs')
 LOGS_DIR = os.path.join(REPO_DIR, 'logs')
@@ -81,7 +82,6 @@ SENTENCE_TARGET_COL = 'sentence_target'
 TARGET_SEQUENCE_COL = 'target_sequence'
 CLEANED_TOKENS_COL = 'cleaned_tokens'
 INDEXED_TOKENS_COL = 'indexed_tokens'
-PADDED_SEQUENCE_COL = 'padded_sequence'
 
 REGEX_PATTERN = {
     '<link>': r'(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:\'".,<>?\xab\xbb\u201c\u201d\u2018\u2019]))',
