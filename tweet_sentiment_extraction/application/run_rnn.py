@@ -1,7 +1,10 @@
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
+from torch import nn
+from torch.nn import functional as F
+from torch import optim
+from torch.utils.data import Dataset, DataLoader
+from torch.autograd import Variable
+
 from gensim.corpora import Dictionary
 
 import re
@@ -10,7 +13,9 @@ import sys
 from os.path import join
 import pandas as pd
 import numpy as np
+from math import log
 
+from time import time
 from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentenceCleaner
 from tweet_sentiment_extraction.utils.metrics import jaccard_score
 from tweet_sentiment_extraction import settings as stg
@@ -93,6 +98,10 @@ train_data = SentenceCleaner.add_tokenized_column(df=train_data, column_name_to_
 validation_data = SentenceCleaner.add_tokenized_column(
     df=validation_data, column_name_to_tokenize=stg.SELECTED_TEXT_COL)
 
+train_data['label'] = train_data.apply(lambda x: ["1" if word in x['tokens_selected_text'] else "0" for word in x['tokens_text']], axis=1)
+validation_data['label'] = validation_data.apply(lambda x: ["1" if word in x['tokens_selected_text'] else "0" for word in x['tokens_text']], axis=1)
+
+
 train_preprocessed_rnn = [
     (sentence, ["1" if word in target else "0" for word in sentence])
     for sentence, target in zip(train_data['tokens_text'], train_data['tokens_selected_text'])
@@ -119,8 +128,11 @@ tag_to_ix = {"0": 0, "1": 1}
 
 # These will usually be more like 32 or 64 dimensional.
 # We will keep them small, so we can see how the weights change as we train.
-EMBEDDING_DIM = 6
-HIDDEN_DIM = 6
+EMBEDDING_DIM = 64
+HIDDEN_DIM = 32
+THRESHOLD = log(0.5)
+EPOCHS = 100
+BATCHE_SIZE = 64
 
 ######################################################################
 # Create the model:
@@ -145,7 +157,7 @@ class LSTMTagger(nn.Module):
         embeds = self.word_embeddings(sentence)
         lstm_out, _ = self.lstm(embeds.view(len(sentence), 1, -1))
         tag_space = self.hidden2tag(lstm_out.view(len(sentence), -1))
-        tag_scores = F.softmax(tag_space, dim=1)
+        tag_scores = F.log_softmax(tag_space, dim=1)
         return tag_scores
 
 ######################################################################
@@ -165,8 +177,12 @@ with torch.no_grad():
     tag_scores = model(inputs)
     print(tag_scores)
 
-for epoch in range(5):  # again, normally you would NOT do 300 epochs, it is toy data
+"""
+# manual training with no mini-batches
+loss = "init"
+for epoch in range(EPOCHS):
     print(epoch)
+    print(loss)
     for sentence, tags in train_preprocessed_rnn:
         # Step 1. Remember that Pytorch accumulates gradients.
         # We need to clear them out before each instance
@@ -185,7 +201,64 @@ for epoch in range(5):  # again, normally you would NOT do 300 epochs, it is toy
         loss = loss_function(tag_scores, targets)
         loss.backward()
         optimizer.step()
+"""
+# propre training using mini-batches
 
+
+class DatasetTweet(Dataset):
+
+    def __init__(self, df, col_x, col_y):
+        self.data = df
+        self.col_x = col_x
+        self.col_y = col_y
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        # load image as ndarray type (Height * Width * Channels)
+        # be carefull for converting dtype to np.uint8 [Unsigned integer (0 to 255)]
+        # in this example, i don't use ToTensor() method of torchvision.transforms
+        # so you can convert numpy ndarray shape to tensor in PyTorch (H, W, C) --> (C, H, W)
+        sequence = self.data[self.col_x].iloc[index]
+        label = self.data[self.col_y].iloc[index]
+        sequence = prepare_sequence(sequence, dictionary.token2id)
+        label = [tag_to_ix[x] for x in label]
+        return sequence, label
+
+
+dataset_to_train = DatasetTweet(train_data, 'tokens_text', 'label')
+train_loader = DataLoader(dataset_to_train, batch_size=BATCHE_SIZE, shuffle=True)
+dataset_to_train.data["label"].iloc[0:4]
+dataset_to_train.data["tokens_text"].iloc[0:4]
+
+""" train_x, train_y = zip(*train_preprocessed_rnn)
+train_x, train_y = list(train_x), list(train_y)
+
+#train_x = np.array([prepare_sequence(text, dictionary.token2id) for text in train_x], dtype=np.long)
+#train_y = np.array([prepare_target(states, tag_to_ix) for states in train_y],dtype=np.long)
+
+traindata = MyDataset(train_x, train_y)
+train_loader = DataLoader(traindata, batch_size=BATCHE_SIZE, shuffle=True) """
+
+EPOCHS = 2
+for epoch in range(EPOCHS):
+    print('starting epoch ' + str(epoch))
+    for batch_idx, (inputs, labels) in enumerate(train_loader):
+        print('starting batch ' + str(batch_idx) + ' epoch ' + str(epoch))
+        inputs, labels = Variable(inputs), Variable(labels)
+
+        model.zero_grad()
+        #inputs = inputs.view(1, inputs.size()[0], 600)
+        # init hidden with number of rows in input
+        #y_pred = model(inputs, self.model.initHidden(inputs.size()[1]))
+        y_pred = model(inputs)
+        #labels.squeeze_()
+        # labels should be tensor with batch_size rows. Column the index of the class (0 or 1)
+        loss = loss_function(tag_scores, targets)
+        loss.backward()
+        optimizer.step()
+        print(loss)
 
 with torch.no_grad():
     inputs = prepare_sequence(train_preprocessed_rnn[1][0], dictionary.token2id)
@@ -201,7 +274,7 @@ with torch.no_grad():
         tag_scores_list.append(tag_scores)
 
 tag_scores_1d = [[x[1] for x in list_pred] for list_pred in tag_scores_list]
-train_bool_pred = [[True if score > 0.5 else False for score in list_pred] for list_pred in tag_scores_1d]
+train_bool_pred = [[True if score > THRESHOLD else False for score in list_pred] for list_pred in tag_scores_1d]
 
 flat = []
 for e1 in range(len(train_bool_pred)):
@@ -227,7 +300,7 @@ with torch.no_grad():
         tag_scores_list.append(tag_scores)
 
 tag_scores_1d = [[x[1] for x in list_pred] for list_pred in tag_scores_list]
-validation_bool_pred = [[True if score > 0.5 else False for score in list_pred] for list_pred in tag_scores_1d]
+validation_bool_pred = [[True if score > THRESHOLD else False for score in list_pred] for list_pred in tag_scores_1d]
 validation_model_pred = [' '.join(np.array(sentence)[pred])
                          for sentence, pred in zip(validation_data['tokens_text'], validation_bool_pred)]
 
@@ -264,7 +337,3 @@ print('--------------------------')
 # * To do a sequence model over characters, you will have to embed characters.
 #   The character embeddings will be the input to the character LSTM.
 #
-
-for i, sentence in enumerate(tag_scores_1d):
-    if sum(np.array(sentence) > 0.1) > 0:
-        print(i, sentence)
