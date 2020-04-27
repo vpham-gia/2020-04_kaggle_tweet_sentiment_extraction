@@ -1,17 +1,8 @@
+"""Bidirectional LSTM for name entity recognition-like problem."""
+
 from gensim.corpora import Dictionary
-
-import re
-
-import sys
 from os.path import join
-import pandas as pd
-import numpy as np
 from tqdm import tqdm
-
-from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentenceCleaner
-from tweet_sentiment_extraction.utils.metrics import jaccard_score
-from tweet_sentiment_extraction import settings as stg
-
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras import regularizers, Model
 from tensorflow.keras.models import Sequential
@@ -19,39 +10,16 @@ from tensorflow.keras.layers import Embedding, TimeDistributed, Dropout, Dense, 
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-
 from sklearn.model_selection import train_test_split
 
-######################################################################
-# Example: An LSTM for Part-of-Speech Tagging in Tensorflow
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-######################################################################
+import numpy as np
+import pandas as pd
+import re
+import sys
 
-
-##########################################
-# Load and Clean Text same as RNN Pytorch
-##########################################
-
-regex_pattern = {
-    '<link>': r'(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:\'".,<>?\xab\xbb\u201c\u201d\u2018\u2019]))',
-    '<hash>': r'#\w*',
-    '<mention>': r'@\w*',
-    '<retweet>': r'^(RT|FAV)'
-}
-
-
-def clean_text_with_repeated_letters(text):
-    # 'REPEATED_LETTERS': r'([A-Za-z])\1{2,}'
-    pass
-
-
-def lower_and_add_flag_pattern(text):
-    text = text.lower()
-
-    for key, value in regex_pattern.items():
-        text = re.sub(value, key, text)
-
-    return text
+from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentenceCleaner, SentencePreprocessor
+from tweet_sentiment_extraction.utils.metrics import jaccard_score
+from tweet_sentiment_extraction import settings as stg
 
 
 train = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv')).dropna(subset=[stg.TEXT_COL])
@@ -64,64 +32,61 @@ train_data = SentenceCleaner.add_tokenized_column(df=train, column_name_to_token
 validation_data = SentenceCleaner.add_tokenized_column(df=validation, column_name_to_tokenize=stg.TEXT_COL)
 
 train_data = SentenceCleaner.add_tokenized_column(df=train_data, column_name_to_tokenize=stg.SELECTED_TEXT_COL)
-validation_data = SentenceCleaner.add_tokenized_column(
-    df=validation_data, column_name_to_tokenize=stg.SELECTED_TEXT_COL)
+validation_data = SentenceCleaner.add_tokenized_column(df=validation_data,
+                                                       column_name_to_tokenize=stg.SELECTED_TEXT_COL)
 
-train_preprocessed_rnn = [
-    (sentence, ["1" if word in target else "0" for word in sentence])
-    for sentence, target in zip(train_data['tokens_text'], train_data['tokens_selected_text'])
-]
 
-validation_preprocessed_rnn = [
-    (sentence, ["1" if word in target else "0" for word in sentence])
-    for sentence, target in zip(validation_data['tokens_text'], validation_data['tokens_selected_text'])
-]
+# def clean_text_with_repeated_letters(text):
+#     # 'REPEATED_LETTERS': r'([A-Za-z])\1{2,}'
+#     pass
+
+# stg.PADDED_SEQUENCE_COL: lambda df: df[stg.INDEXED_TOKENS_COL].apply(lambda x: pad_sequences(x, MAX_LEN))
+
 
 dictionary = Dictionary([["<OOV>", "<PAD>"]])
 train_selected_dictionary = Dictionary(train_data[stg.TOKENS_SELECTED_TEXT_COL].apply(
-    lambda x: [lower_and_add_flag_pattern(word) for word in x]))
+    lambda x: [SentencePreprocessor._lower_and_add_flag_pattern(word) for word in x]))
 train_dictionary = Dictionary(train_data[stg.TOKENS_TEXT_COL].apply(
-    lambda x: [lower_and_add_flag_pattern(word) for word in x]))
+    lambda x: [SentencePreprocessor._lower_and_add_flag_pattern(word) for word in x]))
 train_dictionary.filter_extremes(keep_n=3000)
 filtered_train_dictionary = train_dictionary.token2id
 dictionary.merge_with(train_selected_dictionary)
 dictionary.merge_with(train_dictionary)
 
+sp = SentencePreprocessor(df=train_data)
+
+toto = sp.preprocess_dataset(vocabulary=dictionary.token2id)
+
+sys.exit()
+
 ##########################################
 ##########################################
-MAX_LEN = 35
 
 
-def prepare_sequence(seq, to_ix):
-    """
-    Prepare Sequence by adding pattern and transform to lowercase.
+class BidirectionalLSTM:
+    """TODO."""
 
-    Parameters:
-    seq: list
-    to_ix: gensim dict
+    LENGTH_OF_LONGEST_SENTENCE = 35
 
-    Return:
-    list"""
-    idxs = [to_ix.get(lower_and_add_flag_pattern(w), to_ix["<OOV>"]) for w in seq]
-    return idxs
+    def __init__(self, hidden_dim, word_embedding_initialization):
+        """Initialize class."""
+        self.hidden_dim = hidden_dim
+        self.word_embedding_initialization = word_embedding_initialization
 
+    @property
+    def model(self):
+        """Model structure."""
+        pass
 
-def prepare_seq_X_y(df, to_ix):
-    """
-    Return:
-    X: list
-    y: list
-    """
-    seq_X = []
-    seq_y = []
-    for i in range(len(train_preprocessed_rnn)):
-        seq_X_in = prepare_sequence(train_preprocessed_rnn[i][0], dictionary.token2id)
-        seq_X.append(seq_X_in)
+    def _custom_loss_to_exclude_paddings(self):
+        pass
 
-        seq_y_in = train_preprocessed_rnn[i][1]
-        seq_y.append(seq_y_in)
+    def fit(self, XX):
+        """Override fit method."""
 
-    return seq_X, seq_y
+    def predict(self, X_test):
+        """Override predict method to match NER application."""
+
 
 
 def load_glove():

@@ -76,3 +76,16 @@ ML_TARGET_COL = 'ml_target'
 TOKENS_PRED_COL = 'tokens_sentence_pred'
 SENTENCE_PRED_COL = 'sentence_pred'
 SENTENCE_TARGET_COL = 'sentence_target'
+
+# Variables for Tensorflow run
+TARGET_SEQUENCE_COL = 'target_sequence'
+CLEANED_TOKENS_COL = 'cleaned_tokens'
+INDEXED_TOKENS_COL = 'indexed_tokens'
+PADDED_SEQUENCE_COL = 'padded_sequence'
+
+REGEX_PATTERN = {
+    '<link>': r'(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:\'".,<>?\xab\xbb\u201c\u201d\u2018\u2019]))',
+    '<hash>': r'#\w*',
+    '<mention>': r'@\w*',
+    '<retweet>': r'^(RT|FAV)'
+}
