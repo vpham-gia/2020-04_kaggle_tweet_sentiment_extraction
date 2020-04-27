@@ -1,17 +1,9 @@
+"""Bidirectional LSTM for name entity recognition-like problem."""
+
+from gensim.models import KeyedVectors
 from gensim.corpora import Dictionary
-
-import re
-
-import sys
 from os.path import join
-import pandas as pd
-import numpy as np
 from tqdm import tqdm
-
-from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentenceCleaner
-from tweet_sentiment_extraction.utils.metrics import jaccard_score
-from tweet_sentiment_extraction import settings as stg
-
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras import regularizers, Model
 from tensorflow.keras.models import Sequential
@@ -19,39 +11,17 @@ from tensorflow.keras.layers import Embedding, TimeDistributed, Dropout, Dense, 
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-
 from sklearn.model_selection import train_test_split
 
-######################################################################
-# Example: An LSTM for Part-of-Speech Tagging in Tensorflow
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-######################################################################
+import numpy as np
+import pandas as pd
+import re
+import sys
 
-
-##########################################
-# Load and Clean Text same as RNN Pytorch
-##########################################
-
-regex_pattern = {
-    '<link>': r'(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:\'".,<>?\xab\xbb\u201c\u201d\u2018\u2019]))',
-    '<hash>': r'#\w*',
-    '<mention>': r'@\w*',
-    '<retweet>': r'^(RT|FAV)'
-}
-
-
-def clean_text_with_repeated_letters(text):
-    # 'REPEATED_LETTERS': r'([A-Za-z])\1{2,}'
-    pass
-
-
-def lower_and_add_flag_pattern(text):
-    text = text.lower()
-
-    for key, value in regex_pattern.items():
-        text = re.sub(value, key, text)
-
-    return text
+from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentenceCleaner, SentencePreprocessor
+from tweet_sentiment_extraction.utils.decorators import timer
+from tweet_sentiment_extraction.utils.metrics import jaccard_score
+from tweet_sentiment_extraction import settings as stg
 
 
 train = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv')).dropna(subset=[stg.TEXT_COL])
@@ -64,73 +34,42 @@ train_data = SentenceCleaner.add_tokenized_column(df=train, column_name_to_token
 validation_data = SentenceCleaner.add_tokenized_column(df=validation, column_name_to_tokenize=stg.TEXT_COL)
 
 train_data = SentenceCleaner.add_tokenized_column(df=train_data, column_name_to_tokenize=stg.SELECTED_TEXT_COL)
-validation_data = SentenceCleaner.add_tokenized_column(
-    df=validation_data, column_name_to_tokenize=stg.SELECTED_TEXT_COL)
+validation_data = SentenceCleaner.add_tokenized_column(df=validation_data,
+                                                       column_name_to_tokenize=stg.SELECTED_TEXT_COL)
 
-train_preprocessed_rnn = [
-    (sentence, ["1" if word in target else "0" for word in sentence])
-    for sentence, target in zip(train_data['tokens_text'], train_data['tokens_selected_text'])
-]
 
-validation_preprocessed_rnn = [
-    (sentence, ["1" if word in target else "0" for word in sentence])
-    for sentence, target in zip(validation_data['tokens_text'], validation_data['tokens_selected_text'])
-]
+# def clean_text_with_repeated_letters(text):
+#     # 'REPEATED_LETTERS': r'([A-Za-z])\1{2,}'
+#     pass
+
+# stg.PADDED_SEQUENCE_COL: lambda df: df[stg.INDEXED_TOKENS_COL].apply(lambda x: pad_sequences(x, MAX_LEN))
+
 
 dictionary = Dictionary([["<OOV>", "<PAD>"]])
 train_selected_dictionary = Dictionary(train_data[stg.TOKENS_SELECTED_TEXT_COL].apply(
-    lambda x: [lower_and_add_flag_pattern(word) for word in x]))
+    lambda x: [SentencePreprocessor._lower_and_add_flag_pattern(word) for word in x]))
 train_dictionary = Dictionary(train_data[stg.TOKENS_TEXT_COL].apply(
-    lambda x: [lower_and_add_flag_pattern(word) for word in x]))
+    lambda x: [SentencePreprocessor._lower_and_add_flag_pattern(word) for word in x]))
 train_dictionary.filter_extremes(keep_n=3000)
 filtered_train_dictionary = train_dictionary.token2id
 dictionary.merge_with(train_selected_dictionary)
 dictionary.merge_with(train_dictionary)
 
-##########################################
-##########################################
-MAX_LEN = 35
+sp = SentencePreprocessor(df=train_data)
+
+train_data_preprocessed = sp.preprocess_dataset(vocabulary=dictionary.token2id)\
+                            .assign(to_exclude=lambda df: df[stg.TARGET_SEQUENCE_COL].apply(lambda x: max(x) == 0))\
+                            .query('not to_exclude')
 
 
-def prepare_sequence(seq, to_ix):
-    """
-    Prepare Sequence by adding pattern and transform to lowercase.
-
-    Parameters:
-    seq: list
-    to_ix: gensim dict
-
-    Return:
-    list"""
-    idxs = [to_ix.get(lower_and_add_flag_pattern(w), to_ix["<OOV>"]) for w in seq]
-    return idxs
-
-
-def prepare_seq_X_y(df, to_ix):
-    """
-    Return:
-    X: list
-    y: list
-    """
-    seq_X = []
-    seq_y = []
-    for i in range(len(train_preprocessed_rnn)):
-        seq_X_in = prepare_sequence(train_preprocessed_rnn[i][0], dictionary.token2id)
-        seq_X.append(seq_X_in)
-
-        seq_y_in = train_preprocessed_rnn[i][1]
-        seq_y.append(seq_y_in)
-
-    return seq_X, seq_y
-
-
-def load_glove():
+@timer
+def load_word_embedding(filename='glove.twitter.27B/glove.twitter.27B.200d.txt'):
     """Word embeddings from pre-trained Glove."""
-    tqdm.pandas()
-    f = open(join(stg.RAW_DATA_DIR, 'glove.840B.300d.txt'))
+    # tqdm.pandas()
+    f = open(join(stg.WORD_EMBEDDING_DIR, filename))
 
     embedding_values = {}
-    for line in tqdm(f):
+    for line in f:
         value = line.split(' ')
         word = value[0]
         coef = np.array(value[1:], dtype='float32')
@@ -138,93 +77,138 @@ def load_glove():
     return embedding_values
 
 
-def fit_glove(embedding_values):
-
-    all_embs = np.stack(embedding_values.values())
+@timer
+def adapt_glove_to_dictionary(pre_trained_glove_values, dictionary_token2id=dictionary.token2id):
+    all_embs = np.stack(pre_trained_glove_values.values())
     emb_mean, emb_std = all_embs.mean(), all_embs.std()
     emb_mean, emb_std
 
-    embedding_matrix = np.random.normal(emb_mean, emb_std, (vocab_size, 300))
-    OFV = []
-    for word, i in tqdm(token.word_index.items()):
-        values = embedding_values.get(re.sub(r"[^A-Za-z]", "", word))
-        if values is not None:
-            embedding_matrix[i] = values
+    embedding_matrix = np.random.normal(emb_mean, emb_std, (len(dictionary_token2id), 200))
+    embedding_matrix[1] = 0  # Padding embedding
+
+    out_of_vocabulary = []
+    for word, i in dictionary_token2id.items():
+        if i >= 2:  # 0 is the index of OOV, 1 is the index of Padding
+            values = pre_trained_glove_values.get(word)
+            if values is not None:
+                embedding_matrix[i] = values
+            else:
+                out_of_vocabulary.append(word)
+    print(f'out_of_vocabulary: {len(out_of_vocabulary)}')
+
+    return embedding_matrix  # , out_of_vocabulary
+
+
+pre_train_glove = load_word_embedding()
+our_dict = adapt_glove_to_dictionary(pre_trained_glove_values=pre_train_glove, dictionary_token2id=dictionary.token2id)
+
+
+class BidirectionalLSTM:
+    """TODO."""
+
+    LENGTH_OF_LONGEST_SENTENCE = 35
+
+    def __init__(self, hidden_dim, word_embedding_initialization):
+        """Initialize class."""
+        self.hidden_dim = hidden_dim
+        self.word_embedding_initialization = word_embedding_initialization
+        self.model = self._model
+
+    @property
+    def _model(self):
+        """Model structure."""
+        inputs = Input(shape=(self.LENGTH_OF_LONGEST_SENTENCE, ))
+
+        embedding = Embedding(input_dim=self.word_embedding_initialization.shape[0],
+                              output_dim=self.word_embedding_initialization.shape[1],
+                              weights=[self.word_embedding_initialization],
+                              trainable=True)(inputs)  # change trainable to False
+
+        # TODO: concat with aditional features
+
+        bidirection_lstm = Bidirectional(LSTM(self.hidden_dim,
+                                              return_sequences=True,
+                                              kernel_regularizer=regularizers.l2(0.01)))(embedding)
+
+        dropout = Dropout(0.2)(bidirection_lstm)
+        prediction = Dense(1, activation='sigmoid')(dropout)
+
+        model = Model(inputs=inputs, outputs=prediction)
+        model.compile(optimizer=Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
+        return model
+
+    def fit(self, X, y, pad_sentences=True, **kwargs):
+        """Override fit method."""
+        if pad_sentences:
+            X_to_fit = pad_sequences(X, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
+            y_to_fit = pad_sequences(y, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
         else:
-            OFV.append(word)
-    print(f'OFV:{len(OFV)}')
+            X_to_fit, y_to_fit = X, y
 
-    return embedding_matrix
+        return self.model.fit(X_to_fit, y_to_fit, **kwargs)
 
+    def predict(self, X_test, pad_sentences=True):
+        """Override predict method to match NER application."""
+        if pad_sentences:
+            X_to_predict = pad_sequences(X_test, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
+        else:
+            X_to_predict = X_test
 
-seq_X, seq_y = prepare_seq_X_y(train_preprocessed_rnn, dictionary.token2id)
+        predictions = self.model.predict(X_to_predict)
 
-train_pad_seq_x = pad_sequences(seq_X, maxlen=MAX_LEN)
-train_pad_seq_y = pad_sequences(seq_y, maxlen=MAX_LEN)
-
-token = Tokenizer(num_words=54000, filters='')
-token.fit_on_texts(dictionary.token2id)
-vocab_size = len(token.word_index) + 1
-
-embedding_values = load_glove()
-embedding_matrix = fit_glove(embedding_values)
-
-######################################################################
-# Create  model:
-######################################################################
+        unpaded_preds = [pred[:len(x)] for pred, x in zip(predictions, X_test)]
+        return unpaded_preds
 
 
-def bidirectional_lstm_model(hidden_dim):
-    print('Building LSTM model...')
-    model = Sequential()
+BLSTM = BidirectionalLSTM(hidden_dim=128, word_embedding_initialization=our_dict)
 
-    model.add(Embedding(vocab_size, 300, weights=[embedding_matrix], trainable=True))  # change trainable to False
-    model.add(Bidirectional(LSTM(hidden_dim, return_sequences=True, kernel_regularizer=regularizers.l2(0.01))))
-    model.add(Dropout(0.5))
-    model.add(Dense(1, activation='sigmoid'))
-
-    model.compile(optimizer=Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
-    print(f'LSTM Built: {model.summary()}')
-    return model
-
-
-model = bidirectional_lstm_model(hidden_dim=128)
-
-X_train, X_test, y_train, y_test = train_test_split(train_pad_seq_x, train_pad_seq_y, test_size=0.2, random_state=50)
-# Fit the model
 callbacks = ModelCheckpoint(join(stg.ML_DATA_DIR, "best_model.hdf5"), monitor='loss', verbose=1, save_best_only=True)
-history = model.fit(X_train, y_train, batch_size=32, epochs=20, validation_data=(X_test, y_test), callbacks=[callbacks],
-                    verbose=0)
+model_fit = BLSTM.fit(X=train_data_preprocessed[stg.INDEXED_TOKENS_COL],
+                      y=train_data_preprocessed[stg.TARGET_SEQUENCE_COL],
+                      batch_size=32, epochs=30, validation_split=0.2, callbacks=[callbacks], verbose=1)
 
+train_pred = BLSTM.predict(X_test=train_data_preprocessed[stg.INDEXED_TOKENS_COL])
 
-def reformat_pred(df, predictions):
-    """
-    Return:
-    result_pred: list
-        text list of predictions
-    """
-    result_pred = []
+train_data_with_pred = train_data_preprocessed.assign(
+    pred=train_pred,
+    pred_in_bool=lambda df: df['pred'].apply(lambda x: [True if score > 0.5 else False for score in x]),
+    tokens_pred=lambda df: df.apply(lambda row: np.array(row[stg.TOKENS_TEXT_COL])[row['pred_in_bool']], axis=1),
+    sentence_pred=lambda df: df['tokens_pred'].apply(lambda x: ' '.join(x))
+)
 
-    for i in range(len(df)):
+train_all_sentiments = pd.merge(left=pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv')).dropna(subset=[stg.TEXT_COL]),
+                                right=train_data_with_pred[[stg.ID_COL, 'sentence_pred']],
+                                on=stg.ID_COL, how='left')\
+    .assign(sentence_pred=lambda df: np.where(df['sentence_pred'].isna(), df['text'], df['sentence_pred']))\
+    .assign(sentence_pred=lambda df: np.where(df['sentence_pred'] == '', df['text'], df['sentence_pred']))
 
-        padding_value = MAX_LEN - len(df[i][1])
-        pred_value = np.array(predictions[i][padding_value:].flatten(), dtype=bool)
-        if not any(pred_value) == True:  # if prediction is empty
-            pred_value[pred_value == False] = True
-        text_value = np.array(df[i][0])
-
-        result_tolist = text_value[pred_value].tolist()
-        result_as_string = ' '.join(result_tolist)
-
-        result_pred.append(result_as_string)
-    return result_pred
-
-
-train_pred = model.predict(train_pad_seq_x).round().astype(int)
-result_pred = reformat_pred(train_preprocessed_rnn, train_pred)
-
-train_score = jaccard_score(train_data[stg.SELECTED_TEXT_COL], pd.Series(result_pred))
+train_score = jaccard_score(y_true=train_all_sentiments[stg.SELECTED_TEXT_COL],
+                            y_pred=train_all_sentiments['sentence_pred'])
 
 print('--------------------------')
 print(f'train score: {train_score}')
+print('--------------------------')
+
+sp_validation = SentencePreprocessor(df=validation)
+validation_data_preprocessed = sp.preprocess_dataset(vocabulary=dictionary.token2id)
+validation_pred = BLSTM.predict(X_test=validation_data_preprocessed[stg.INDEXED_TOKENS_COL])
+
+validation_data_with_pred = validation_data_preprocessed.assign(
+    pred=validation_pred,
+    pred_in_bool=lambda df: df['pred'].apply(lambda x: [True if score > 0.5 else False for score in x]),
+    tokens_pred=lambda df: df.apply(lambda row: np.array(row[stg.TOKENS_TEXT_COL])[row['pred_in_bool']], axis=1),
+    sentence_pred=lambda df: df['tokens_pred'].apply(lambda x: ' '.join(x))
+)
+
+validation_all_sentiments = pd.merge(left=pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'validation.csv')).dropna(subset=[stg.TEXT_COL]),
+                                     right=validation_data_with_pred[[stg.ID_COL, 'sentence_pred']],
+                                     on=stg.ID_COL, how='left')\
+    .assign(sentence_pred=lambda df: np.where(df['sentence_pred'].isna(), df['text'], df['sentence_pred']))\
+    .assign(sentence_pred=lambda df: np.where(df['sentence_pred'] == '', df['text'], df['sentence_pred']))
+
+validation_score = jaccard_score(y_true=validation_all_sentiments[stg.SELECTED_TEXT_COL],
+                                 y_pred=validation_all_sentiments['sentence_pred'])
+
+print('--------------------------')
+print(f'validation score: {validation_score}')
 print('--------------------------')
