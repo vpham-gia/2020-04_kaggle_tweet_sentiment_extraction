@@ -100,6 +100,8 @@ class Featurizer:
     -------
     encode_sentiment_column(df)
         Encode sentiment to {-1, 0, 1}.
+    add_length_of_tweet_column(df)
+        Add column with length of tweets (number of words).
     encode_word_to_vector(df)
         Encode word to vector using spacy models.
     """
@@ -120,6 +122,23 @@ class Featurizer:
             stg.SENTIMENT_COL: lambda df: df[stg.SENTIMENT_COL].map(stg.SENTIMENT_ENCODING)
         })
         return df_with_sentiment_encoding
+
+    @classmethod
+    def add_length_of_tweet_column(cls, df):
+        """Add column with length of tweets (number of words).
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+
+        Returns
+        -------
+        df_with_length_of_tweet: pandas.DataFrame
+        """
+        df_with_length_of_tweet = df.assign(**{
+            stg.FEAT_LENGTH_TWEET_COL: lambda df: df[stg.TEXT_COL].apply(lambda x: len(str(x).split()))
+        })
+        return df_with_length_of_tweet
 
     @classmethod
     def encode_word_to_vector(cls, df):
