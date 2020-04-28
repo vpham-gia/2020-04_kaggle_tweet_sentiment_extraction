@@ -6,7 +6,7 @@ BidirectionalLSTM
 """
 from tensorflow.keras import regularizers, Model
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Embedding, TimeDistributed, Dropout, Dense, Input, Bidirectional, LSTM
+from tensorflow.keras.layers import Embedding, TimeDistributed, Dropout, Dense, Input, Bidirectional, LSTM, concatenate
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
@@ -30,6 +30,7 @@ class BidirectionalLSTM:
     """
 
     LENGTH_OF_LONGEST_SENTENCE = 35
+    NUMBER_EXTRA_FEATURES = 2
 
     def __init__(self, hidden_dim, word_embedding_initialization):
         """Initialize class."""
@@ -45,27 +46,29 @@ class BidirectionalLSTM:
         -------
         model: tensorflow.keras.Model
         """
-        inputs = Input(shape=(self.LENGTH_OF_LONGEST_SENTENCE, ))
+        inputs = Input(shape=(self.LENGTH_OF_LONGEST_SENTENCE, ), name='word_indexes')
 
         embedding = Embedding(input_dim=self.word_embedding_initialization.shape[0],
                               output_dim=self.word_embedding_initialization.shape[1],
                               weights=[self.word_embedding_initialization],
                               trainable=True)(inputs)  # change trainable to False
 
-        # TODO: concat with aditional features
+        extra_features = Input(shape=(self.LENGTH_OF_LONGEST_SENTENCE, self.NUMBER_EXTRA_FEATURES),
+                               name='extra_features')
+        embedding_with_extra_features = concatenate([embedding, extra_features])
 
         bidirection_lstm = Bidirectional(LSTM(self.hidden_dim,
                                               return_sequences=True,
-                                              kernel_regularizer=regularizers.l2(0.01)))(embedding)
+                                              kernel_regularizer=regularizers.l2(0.01)))(embedding_with_extra_features)
 
         dropout = Dropout(0.2)(bidirection_lstm)
         prediction = Dense(1, activation='sigmoid')(dropout)
 
-        model = Model(inputs=inputs, outputs=prediction)
+        model = Model(inputs=[inputs, extra_features], outputs=prediction)
         model.compile(optimizer=Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
         return model
 
-    def fit(self, X, y, pad_sentences=True, **kwargs):
+    def fit(self, X_word_indexes, X_features, y, pad_sentences=True, **kwargs):
         """Override fit method.
 
         Parameters
@@ -80,14 +83,15 @@ class BidirectionalLSTM:
         self: object
         """
         if pad_sentences:
-            X_to_fit = pad_sequences(X, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
+            X_word = pad_sequences(X_word_indexes, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
+            X_features = pad_sequences(X_features, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
             y_to_fit = pad_sequences(y, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
         else:
-            X_to_fit, y_to_fit = X, y
+            X_word, y_to_fit = X_word_indexes, y
 
-        return self.model.fit(X_to_fit, y_to_fit, **kwargs)
+        return self.model.fit({'word_indexes': X_word, 'extra_features': X_features}, y_to_fit, **kwargs)
 
-    def predict(self, X_test, pad_sentences=True):
+    def predict(self, X_test_word, X_test_features, pad_sentences=True):
         """Override predict method.
 
         Parameters
@@ -101,11 +105,12 @@ class BidirectionalLSTM:
         unpaded_preds: array-like of shape (n_samples,)
         """
         if pad_sentences:
-            X_to_predict = pad_sequences(X_test, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
+            X_word = pad_sequences(X_test_word, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
+            X_test_features = pad_sequences(X_test_features, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
         else:
-            X_to_predict = X_test
+            X_word = X_test_word
 
-        predictions = self.model.predict(X_to_predict)
+        predictions = self.model.predict({'word_indexes': X_word, 'extra_features': X_test_features})
 
-        unpaded_preds = [pred[:len(x)] for pred, x in zip(predictions, X_test)]
+        unpaded_preds = [pred[:len(x)] for pred, x in zip(predictions, X_test_word)]
         return unpaded_preds

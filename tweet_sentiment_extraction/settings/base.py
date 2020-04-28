@@ -67,6 +67,8 @@ SENTIMENT_ENCODING = {
     'positive': 1
 }
 
+FEAT_LENGTH_TWEET_COL = 'length_of_tweet'
+
 WORD_ENCODING_COL = 'word_encoding'
 PREFIX_SPACY_ENCODING_COL = 'spacy_enc'
 
