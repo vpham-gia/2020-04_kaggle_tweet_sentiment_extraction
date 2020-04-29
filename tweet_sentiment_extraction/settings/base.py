@@ -68,6 +68,8 @@ SENTIMENT_ENCODING = {
     'positive': 1
 }
 
+BOOLEAN_ENCODING = {True: 1, False: 0}
+
 FEAT_LENGTH_TWEET_COL = 'length_of_tweet'
 
 WORD_ENCODING_COL = 'word_encoding'

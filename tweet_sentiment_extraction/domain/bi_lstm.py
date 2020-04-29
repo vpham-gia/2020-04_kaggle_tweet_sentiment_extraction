@@ -6,7 +6,7 @@ BidirectionalLSTM
 """
 from tensorflow.keras import regularizers, Model
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Embedding, TimeDistributed, Dropout, Dense, Input, Bidirectional, LSTM, concatenate
+from tensorflow.keras.layers import Embedding, TimeDistributed, SpatialDropout1D, Dense, Input, Bidirectional, LSTM, concatenate
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
@@ -30,7 +30,7 @@ class BidirectionalLSTM:
     """
 
     LENGTH_OF_LONGEST_SENTENCE = 35
-    NUMBER_EXTRA_FEATURES = 2
+    NUMBER_EXTRA_FEATURES = 5
 
     def __init__(self, hidden_dim, word_embedding_initialization):
         """Initialize class."""
@@ -61,8 +61,9 @@ class BidirectionalLSTM:
                                               return_sequences=True,
                                               kernel_regularizer=regularizers.l2(0.01)))(embedding_with_extra_features)
 
-        dropout = Dropout(0.2)(bidirection_lstm)
-        prediction = Dense(1, activation='sigmoid')(dropout)
+        dropout = SpatialDropout1D(rate=0.2)(bidirection_lstm)
+        # prediction = Dense(1, activation='sigmoid')(dropout)
+        prediction = TimeDistributed(Dense(1, activation="sigmoid"))(dropout)
 
         model = Model(inputs=[inputs, extra_features], outputs=prediction)
         model.compile(optimizer=Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])

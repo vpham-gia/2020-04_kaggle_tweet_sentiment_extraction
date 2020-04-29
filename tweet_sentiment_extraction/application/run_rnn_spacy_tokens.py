@@ -1,6 +1,8 @@
+import sys
 from gensim.corpora import Dictionary
 from os.path import join
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 import numpy as np
 import pandas as pd
@@ -12,6 +14,8 @@ from tweet_sentiment_extraction.domain.dataset_builder import Featurizer
 from tweet_sentiment_extraction.domain.word_embedding import WordEmbedding
 from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentencePreprocessor
 from tweet_sentiment_extraction.utils.metrics import jaccard_score
+
+analyzer = SentimentIntensityAnalyzer()
 
 train = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv')).dropna(subset=[stg.TEXT_COL])
 validation = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'validation.csv'))
@@ -61,7 +65,17 @@ for doc, selected_doc, start_pos, end_pos, feats in zip(nlp.pipe(train_sentiment
     train_selected_docs.append(selected_doc)
     train_label = [1 if start_pos <= token.idx < end_pos else 0 for token in doc]
     train_labels.append(train_label)
-    train_extra_features.append([feats for i in range(len(list(doc)))])
+
+    token_feats = [[analyzer.polarity_scores(token.text)['compound'],
+                    stg.BOOLEAN_ENCODING[token.is_stop],
+                    stg.BOOLEAN_ENCODING[token.like_url]] for token in doc]
+    train_extra_features.append([feats + token_feat for token_feat in token_feats])
+
+# idx = 0
+# print(train_docs[idx])
+# print(train_selected_docs[idx])
+# print(train_labels[idx])
+# print(train_extra_features[idx])
 
 validation_docs = []
 validation_selected_docs = []
@@ -77,7 +91,11 @@ for doc, selected_doc, start_pos, end_pos, feats in zip(nlp.pipe(validation_sent
     validation_selected_docs.append(selected_doc)
     validation_label = [1 if start_pos <= token.idx < end_pos else 0 for token in doc]
     validation_labels.append(validation_label)
-    validation_extra_features.append([feats for i in range(len(list(doc)))])
+
+    token_feats = [[analyzer.polarity_scores(token.text)['compound'],
+                    stg.BOOLEAN_ENCODING[token.is_stop],
+                    stg.BOOLEAN_ENCODING[token.like_url]] for token in doc]
+    validation_extra_features.append([feats + token_feat for token_feat in token_feats])
 
 # text = "Hi, I'm late. Soooory "
 # list(nlp(text))
@@ -91,7 +109,7 @@ x_train = [[token.lower_ for token in doc] for doc in train_docs]
 train_dictionary = Dictionary(x_train)
 
 train_selected_dictionary = Dictionary([[token.lower_ for token in doc] for doc in train_selected_docs])
-train_dictionary.filter_extremes(keep_n=3000)
+train_dictionary.filter_extremes(no_above=0.6, no_below=10)
 dictionary.merge_with(train_selected_dictionary)
 dictionary.merge_with(train_dictionary)
 dictionary.save(join(stg.MODELS_DIR, 'rnn_spacy_tokens_dict'))
@@ -104,11 +122,15 @@ print(embedding_matrix.shape)
 
 BLSTM = BidirectionalLSTM(hidden_dim=128, word_embedding_initialization=embedding_matrix)
 
+print('---------------------------------------------------------------------------------------------------------------')
+print(BLSTM.model.summary())
+print('---------------------------------------------------------------------------------------------------------------')
+
 callbacks = ModelCheckpoint(join(stg.MODELS_DIR, "rnn_spacy_tokens.hdf5"),
                             monitor='loss',
                             verbose=0,
                             save_best_only=True)
-earlystop = EarlyStopping(monitor='val_loss', patience=3, verbose=0, mode='auto', restore_best_weights=False)
+earlystop = EarlyStopping(monitor='val_loss', patience=3, verbose=0, mode='auto', restore_best_weights=True)
 
 model_fit = BLSTM.fit(X_word_indexes=x_train_indexed, X_features=train_extra_features, y=train_labels,
                       batch_size=128, epochs=50, validation_split=0.2, callbacks=[callbacks, earlystop], verbose=1)

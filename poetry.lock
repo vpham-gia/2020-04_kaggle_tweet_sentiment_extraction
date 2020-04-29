@@ -1180,6 +1180,14 @@ socks = ["PySocks (>=1.5.6,<1.5.7 || >1.5.7,<2.0)"]
 
 [[package]]
 category = "main"
+description = "VADER Sentiment Analysis. VADER (Valence Aware Dictionary and sEntiment Reasoner) is a lexicon and rule-based sentiment analysis tool that is specifically attuned to sentiments expressed in social media, and works well on texts from other domains."
+name = "vadersentiment"
+optional = false
+python-versions = "*"
+version = "3.3.1"
+
+[[package]]
+category = "main"
 description = "A lightweight console printing and formatting toolkit"
 name = "wasabi"
 optional = false
@@ -1240,7 +1248,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["jaraco.itertools", "func-timeout"]
 
 [metadata]
-content-hash = "3b1a8c1b6d97a438799d8ec773c1dd67ac693c1b6f2b914b68968db866aa99fc"
+content-hash = "4d4f3e1b51a9f0317b05d554474542c432848a59a6b699713d4b026a9190e5d8"
 python-versions = "^3.7"
 
 [metadata.files]
@@ -1942,6 +1950,10 @@ typed-ast = [
 urllib3 = [
     {file = "urllib3-1.25.9-py2.py3-none-any.whl", hash = "sha256:88206b0eb87e6d677d424843ac5209e3fb9d0190d0ee169599165ec25e9d9115"},
     {file = "urllib3-1.25.9.tar.gz", hash = "sha256:3018294ebefce6572a474f0604c2021e33b3fd8006ecd11d62107a5d2a963527"},
+]
+vadersentiment = [
+    {file = "vaderSentiment-3.3.1-py2.py3-none-any.whl", hash = "sha256:8e69da9edca1d827ba5ec26979cdc54b1aec9dd95b6f1c51468cd1201ebfef4b"},
+    {file = "vaderSentiment-3.3.1.tar.gz", hash = "sha256:6ea3b53f1835a1bb9125cbb9872e8740bd506ab1d9f2266d0c63109b858d71af"},
 ]
 wasabi = [
     {file = "wasabi-0.6.0-py3-none-any.whl", hash = "sha256:da1f100e0025fe1e50fd67fa5b0b05df902187d5c65c86dc110974ab856d1f05"},

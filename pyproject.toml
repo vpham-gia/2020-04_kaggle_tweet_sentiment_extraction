@@ -15,6 +15,7 @@ gensim = "^3.8.2"
 tqdm = "^4.45.0"
 tensorflow = "^2.1.0"
 tensorflow-estimator = "==2.1.0"
+vaderSentiment = "^3.3.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^4.6"
