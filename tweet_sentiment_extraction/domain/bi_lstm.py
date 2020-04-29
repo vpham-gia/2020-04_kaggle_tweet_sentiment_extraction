@@ -14,6 +14,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 import numpy as np
 
+from tweet_sentiment_extraction.domain.tensorflow_crf import CRF
 
 class BidirectionalLSTM:
     """Builds a bidirectional LSTM to perform predictions.
@@ -35,12 +36,15 @@ class BidirectionalLSTM:
 
     LENGTH_OF_LONGEST_SENTENCE = 40
     NUMBER_EXTRA_FEATURES = 6
+    N_TARGET = 2
 
     def __init__(self, hidden_dim, word_embedding_initialization):
         """Initialize class."""
         self.hidden_dim = hidden_dim
         self.word_embedding_initialization = word_embedding_initialization
+        self.layer_crf = CRF(self.N_TARGET)
         self.model = self._model
+
 
     @property
     def _model(self):
@@ -55,26 +59,22 @@ class BidirectionalLSTM:
         embedding = Embedding(input_dim=self.word_embedding_initialization.shape[0],
                               output_dim=self.word_embedding_initialization.shape[1],
                               weights=[self.word_embedding_initialization],
-                              trainable=True)(inputs)  # change trainable to False
+                              trainable=False)(inputs)  # change trainable to False
 
         extra_features = Input(shape=(self.LENGTH_OF_LONGEST_SENTENCE, self.NUMBER_EXTRA_FEATURES),
                                name='extra_features')
         embedding_with_extra_features = concatenate([embedding, extra_features])
 
         bidirection_lstm = Bidirectional(LSTM(self.hidden_dim,
-                                              return_sequences=True,
-                                              kernel_regularizer=regularizers.l2(0.01)))(embedding_with_extra_features)
+                                              return_sequences=True,  #kernel_regularizer=regularizers.l2(0.01)
+                                              ))(embedding_with_extra_features)
 
-        dropout = SpatialDropout1D(rate=0.2)(bidirection_lstm)
-        # prediction = Dense(1, activation='sigmoid')(dropout)
-        prediction = TimeDistributed(Dense(1, activation="sigmoid"))(dropout)
-
-        crf_predictions, _ = crf_decode(potentials=prediction,
-                                        transition_params=tf.constant(np.ones((2, 2))),
-                                        sequence_length=self.LENGTH_OF_LONGEST_SENTENCE)
-
-        model = Model(inputs=[inputs, extra_features], outputs=crf_predictions)
-        model.compile(optimizer=Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
+        dropout = SpatialDropout1D(rate=0.4)(bidirection_lstm)
+        layer_crf_dense = Dense(self.N_TARGET, activation='softmax')(dropout)
+        output_crf = self.layer_crf(layer_crf_dense)
+#
+        model = Model(inputs=[inputs, extra_features], outputs=output_crf)
+        model.compile(optimizer=Adam(lr=0.001), loss=self.layer_crf.loss, metrics=[self.layer_crf.viterbi_accuracy])
         return model
 
     def load_model_weights(self, model_weights_path):
@@ -132,3 +132,8 @@ class BidirectionalLSTM:
 
         unpaded_preds = [pred[:len(x)] for pred, x in zip(predictions, X_test_word)]
         return unpaded_preds
+
+if __name__ == "__main__":
+    word_embedding = np.ones((20, 500))
+    bilstm = BidirectionalLSTM(8, word_embedding)
+    bilstm.model.summary()
