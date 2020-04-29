@@ -3,14 +3,7 @@
 from gensim.models import KeyedVectors
 from gensim.corpora import Dictionary
 from os.path import join
-from tqdm import tqdm
 from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras import regularizers, Model
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Embedding, TimeDistributed, Dropout, Dense, Input, Bidirectional, LSTM
-from tensorflow.keras.callbacks import ModelCheckpoint
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.preprocessing.sequence import pad_sequences
 from sklearn.model_selection import train_test_split
 
 import numpy as np
@@ -22,6 +15,8 @@ from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentenceC
 from tweet_sentiment_extraction.utils.decorators import timer
 from tweet_sentiment_extraction.utils.metrics import jaccard_score
 from tweet_sentiment_extraction import settings as stg
+from tweet_sentiment_extraction.domain.bi_lstm import BidirectionalLSTM
+from tweet_sentiment_extraction.domain.word_embedding import load_word_embedding, adapt_glove_to_dictionary
 
 
 train = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv')).dropna(subset=[stg.TEXT_COL])
@@ -62,102 +57,8 @@ train_data_preprocessed = sp.preprocess_dataset(vocabulary=dictionary.token2id)\
                             .query('not to_exclude')
 
 
-@timer
-def load_word_embedding(filename='glove.twitter.27B/glove.twitter.27B.200d.txt'):
-    """Word embeddings from pre-trained Glove."""
-    # tqdm.pandas()
-    f = open(join(stg.WORD_EMBEDDING_DIR, filename))
-
-    embedding_values = {}
-    for line in f:
-        value = line.split(' ')
-        word = value[0]
-        coef = np.array(value[1:], dtype='float32')
-        embedding_values[word] = coef
-    return embedding_values
-
-
-@timer
-def adapt_glove_to_dictionary(pre_trained_glove_values, dictionary_token2id=dictionary.token2id):
-    all_embs = np.stack(pre_trained_glove_values.values())
-    emb_mean, emb_std = all_embs.mean(), all_embs.std()
-    emb_mean, emb_std
-
-    embedding_matrix = np.random.normal(emb_mean, emb_std, (len(dictionary_token2id), 200))
-    embedding_matrix[1] = 0  # Padding embedding
-
-    out_of_vocabulary = []
-    for word, i in dictionary_token2id.items():
-        if i >= 2:  # 0 is the index of OOV, 1 is the index of Padding
-            values = pre_trained_glove_values.get(word)
-            if values is not None:
-                embedding_matrix[i] = values
-            else:
-                out_of_vocabulary.append(word)
-    print(f'out_of_vocabulary: {len(out_of_vocabulary)}')
-
-    return embedding_matrix  # , out_of_vocabulary
-
-
 pre_train_glove = load_word_embedding()
 our_dict = adapt_glove_to_dictionary(pre_trained_glove_values=pre_train_glove, dictionary_token2id=dictionary.token2id)
-
-
-class BidirectionalLSTM:
-    """TODO."""
-
-    LENGTH_OF_LONGEST_SENTENCE = 35
-
-    def __init__(self, hidden_dim, word_embedding_initialization):
-        """Initialize class."""
-        self.hidden_dim = hidden_dim
-        self.word_embedding_initialization = word_embedding_initialization
-        self.model = self._model
-
-    @property
-    def _model(self):
-        """Model structure."""
-        inputs = Input(shape=(self.LENGTH_OF_LONGEST_SENTENCE, ))
-
-        embedding = Embedding(input_dim=self.word_embedding_initialization.shape[0],
-                              output_dim=self.word_embedding_initialization.shape[1],
-                              weights=[self.word_embedding_initialization],
-                              trainable=True)(inputs)  # change trainable to False
-
-        # TODO: concat with aditional features
-
-        bidirection_lstm = Bidirectional(LSTM(self.hidden_dim,
-                                              return_sequences=True,
-                                              kernel_regularizer=regularizers.l2(0.01)))(embedding)
-
-        dropout = Dropout(0.2)(bidirection_lstm)
-        prediction = Dense(1, activation='sigmoid')(dropout)
-
-        model = Model(inputs=inputs, outputs=prediction)
-        model.compile(optimizer=Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
-        return model
-
-    def fit(self, X, y, pad_sentences=True, **kwargs):
-        """Override fit method."""
-        if pad_sentences:
-            X_to_fit = pad_sequences(X, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
-            y_to_fit = pad_sequences(y, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
-        else:
-            X_to_fit, y_to_fit = X, y
-
-        return self.model.fit(X_to_fit, y_to_fit, **kwargs)
-
-    def predict(self, X_test, pad_sentences=True):
-        """Override predict method to match NER application."""
-        if pad_sentences:
-            X_to_predict = pad_sequences(X_test, maxlen=self.LENGTH_OF_LONGEST_SENTENCE, padding='post')
-        else:
-            X_to_predict = X_test
-
-        predictions = self.model.predict(X_to_predict)
-
-        unpaded_preds = [pred[:len(x)] for pred, x in zip(predictions, X_test)]
-        return unpaded_preds
 
 
 BLSTM = BidirectionalLSTM(hidden_dim=128, word_embedding_initialization=our_dict)

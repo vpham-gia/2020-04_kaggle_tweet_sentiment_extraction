@@ -1,17 +1,17 @@
+from gensim.corpora import Dictionary
 from os.path import join
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 
 import numpy as np
 import pandas as pd
 import spacy
-from gensim.corpora import Dictionary
 
-from tweet_sentiment_extraction.domain.dataset_builder import Featurizer
-from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentencePreprocessor
 from tweet_sentiment_extraction import settings as stg
 from tweet_sentiment_extraction.domain.bi_lstm import BidirectionalLSTM
+from tweet_sentiment_extraction.domain.dataset_builder import Featurizer
+from tweet_sentiment_extraction.domain.word_embedding import WordEmbedding
+from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentencePreprocessor
 from tweet_sentiment_extraction.utils.metrics import jaccard_score
-
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 
 train = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv')).dropna(subset=[stg.TEXT_COL])
 validation = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'validation.csv'))
@@ -99,23 +99,8 @@ dictionary.save(join(stg.MODELS_DIR, 'rnn_spacy_tokens_dict'))
 x_train_indexed = [[dictionary.token2id.get(token.lower_, 0) for token in doc] for doc in train_docs]
 x_validation_indexed = [[dictionary.token2id.get(token.lower_, 0) for token in doc] for doc in validation_docs]
 
-
-def adapt_spacy_to_dictionary(pre_trained_embedding, dictionary_token2id=dictionary.token2id):
-    embedding_matrix = np.zeros((len(dictionary_token2id), 300))
-    out_of_vocabulary = []
-    for word, i in dictionary_token2id.items():
-        if i >= 2:  # 0 is the index of OOV, 1 is the index of Padding
-            values = pre_trained_embedding.get_vector(word)
-            if values is not None:
-                embedding_matrix[i] = values
-            else:
-                out_of_vocabulary.append(word)
-    print(f'out_of_vocabulary: {len(out_of_vocabulary)}')
-
-    return embedding_matrix  # , out_of_vocabulary
-
-
-embedding_matrix = adapt_spacy_to_dictionary(nlp.vocab, dictionary.token2id)
+embedding_matrix = WordEmbedding(dictionary_token2id=dictionary.token2id).global_embedding_matrix
+print(embedding_matrix.shape)
 
 BLSTM = BidirectionalLSTM(hidden_dim=128, word_embedding_initialization=embedding_matrix)
 
