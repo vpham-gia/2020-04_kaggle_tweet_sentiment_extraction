@@ -68,6 +68,15 @@ class BidirectionalLSTM:
         model.compile(optimizer=Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
         return model
 
+    def load_model_weights(self, model_weights_path):
+        """Load previously saved weights.
+
+        Parameters
+        ----------
+        model_weights_path: string
+        """
+        self.model.load_weights(model_weights_path)
+
     def fit(self, X_word_indexes, X_features, y, pad_sentences=True, **kwargs):
         """Override fit method.
 

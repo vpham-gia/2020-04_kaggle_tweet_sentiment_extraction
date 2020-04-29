@@ -68,7 +68,8 @@ validation_selected_docs = []
 validation_labels = []
 validation_extra_features = []
 for doc, selected_doc, start_pos, end_pos, feats in zip(nlp.pipe(validation_sentiments_featurized[stg.TEXT_COL]),
-                                                        nlp.pipe(validation_sentiments_featurized[stg.SELECTED_TEXT_COL]),
+                                                        nlp.pipe(
+                                                            validation_sentiments_featurized[stg.SELECTED_TEXT_COL]),
                                                         validation_sentiments_featurized['start_position'],
                                                         validation_sentiments_featurized['end_position'],
                                                         validation_sentiments_featurized['extra_features']):
@@ -93,6 +94,7 @@ train_selected_dictionary = Dictionary([[token.lower_ for token in doc] for doc 
 train_dictionary.filter_extremes(keep_n=3000)
 dictionary.merge_with(train_selected_dictionary)
 dictionary.merge_with(train_dictionary)
+dictionary.save(join(stg.MODELS_DIR, 'rnn_spacy_tokens_dict'))
 
 x_train_indexed = [[dictionary.token2id.get(token.lower_, 0) for token in doc] for doc in train_docs]
 x_validation_indexed = [[dictionary.token2id.get(token.lower_, 0) for token in doc] for doc in validation_docs]
@@ -117,12 +119,14 @@ embedding_matrix = adapt_spacy_to_dictionary(nlp.vocab, dictionary.token2id)
 
 BLSTM = BidirectionalLSTM(hidden_dim=128, word_embedding_initialization=embedding_matrix)
 
-callbacks = ModelCheckpoint(join(stg.ML_DATA_DIR, "best_model.hdf5"), monitor='loss', verbose=0, save_best_only=True)
-earlystop = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=0, mode='auto', baseline=None, restore_best_weights=False)
+callbacks = ModelCheckpoint(join(stg.MODELS_DIR, "rnn_spacy_tokens.hdf5"),
+                            monitor='loss',
+                            verbose=0,
+                            save_best_only=True)
+earlystop = EarlyStopping(monitor='val_loss', patience=3, verbose=0, mode='auto', restore_best_weights=False)
 
-model_fit = BLSTM.fit(X_word_indexes=x_train_indexed, X_features=train_extra_features,
-                      y=train_labels,
-                      batch_size=32, epochs=5, validation_split=0.2, callbacks=[callbacks, earlystop], verbose=1)
+model_fit = BLSTM.fit(X_word_indexes=x_train_indexed, X_features=train_extra_features, y=train_labels,
+                      batch_size=128, epochs=50, validation_split=0.2, callbacks=[callbacks, earlystop], verbose=1)
 
 train_pred = BLSTM.predict(X_test_word=x_train_indexed, X_test_features=train_extra_features)
 
