@@ -4,11 +4,15 @@ Classes
 -------
 BidirectionalLSTM
 """
+import tensorflow as tf
 from tensorflow.keras import regularizers, Model
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, TimeDistributed, SpatialDropout1D, Dense, Input, Bidirectional, LSTM, concatenate
+from tensorflow_addons.text.crf import crf_decode
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+import numpy as np
 
 
 class BidirectionalLSTM:
@@ -29,8 +33,8 @@ class BidirectionalLSTM:
     predict(X_test, pad_sentences=True)
     """
 
-    LENGTH_OF_LONGEST_SENTENCE = 35
-    NUMBER_EXTRA_FEATURES = 5
+    LENGTH_OF_LONGEST_SENTENCE = 40
+    NUMBER_EXTRA_FEATURES = 6
 
     def __init__(self, hidden_dim, word_embedding_initialization):
         """Initialize class."""
@@ -65,7 +69,11 @@ class BidirectionalLSTM:
         # prediction = Dense(1, activation='sigmoid')(dropout)
         prediction = TimeDistributed(Dense(1, activation="sigmoid"))(dropout)
 
-        model = Model(inputs=[inputs, extra_features], outputs=prediction)
+        crf_predictions, _ = crf_decode(potentials=prediction,
+                                        transition_params=tf.constant(np.ones((2, 2))),
+                                        sequence_length=self.LENGTH_OF_LONGEST_SENTENCE)
+
+        model = Model(inputs=[inputs, extra_features], outputs=crf_predictions)
         model.compile(optimizer=Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
         return model
 
