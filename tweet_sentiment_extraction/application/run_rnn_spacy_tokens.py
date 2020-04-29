@@ -1,12 +1,14 @@
 import sys
 from gensim.corpora import Dictionary
 from os.path import join
+import logging
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 import numpy as np
 import pandas as pd
 import spacy
+import re
 
 from tweet_sentiment_extraction import settings as stg
 from tweet_sentiment_extraction.domain.bi_lstm import BidirectionalLSTM
@@ -19,6 +21,7 @@ analyzer = SentimentIntensityAnalyzer()
 
 train = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv')).dropna(subset=[stg.TEXT_COL])
 validation = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'validation.csv'))
+logging.info('Train and validation loaded')
 
 train_with_sentiments = (
     train.query('sentiment != "neutral"')
@@ -52,6 +55,11 @@ validation_sentiments_featurized['extra_features'] = validation_sentiments_featu
 
 nlp = spacy.load('en_core_web_md')
 
+def remove_duplicates_char(text, regex=stg.REGEX_PATTERN['<duplicate_chars>']):
+    replace_text = re.sub(regex, r"\1", text)
+    return replace_text
+
+
 train_docs = []
 train_selected_docs = []
 train_labels = []
@@ -66,9 +74,13 @@ for doc, selected_doc, start_pos, end_pos, feats in zip(nlp.pipe(train_sentiment
     train_label = [1 if start_pos <= token.idx < end_pos else 0 for token in doc]
     train_labels.append(train_label)
 
-    token_feats = [[analyzer.polarity_scores(token.text)['compound'],
-                    stg.BOOLEAN_ENCODING[token.is_stop],
-                    stg.BOOLEAN_ENCODING[token.like_url]] for token in doc]
+    token_feats = [[
+        analyzer.polarity_scores(remove_duplicates_char(token.text))['compound'],
+        stg.BOOLEAN_ENCODING[token.is_stop],
+        stg.BOOLEAN_ENCODING[token.like_url],
+        stg.BOOLEAN_ENCODING[bool(re.search(stg.REGEX_PATTERN['<duplicate_chars>'], token.text))]
+    ] for token in doc]
+
     train_extra_features.append([feats + token_feat for token_feat in token_feats])
 
 # idx = 0
@@ -92,11 +104,16 @@ for doc, selected_doc, start_pos, end_pos, feats in zip(nlp.pipe(validation_sent
     validation_label = [1 if start_pos <= token.idx < end_pos else 0 for token in doc]
     validation_labels.append(validation_label)
 
-    token_feats = [[analyzer.polarity_scores(token.text)['compound'],
-                    stg.BOOLEAN_ENCODING[token.is_stop],
-                    stg.BOOLEAN_ENCODING[token.like_url]] for token in doc]
+    token_feats = [[
+        analyzer.polarity_scores(remove_duplicates_char(token.text))['compound'],
+        stg.BOOLEAN_ENCODING[token.is_stop],
+        stg.BOOLEAN_ENCODING[token.like_url],
+        stg.BOOLEAN_ENCODING[bool(re.search(stg.REGEX_PATTERN['<duplicate_chars>'], token.text))]
+    ] for token in doc]
+
     validation_extra_features.append([feats + token_feat for token_feat in token_feats])
 
+logging.info('Extra features created')
 # text = "Hi, I'm late. Soooory "
 # list(nlp(text))
 # labels_exemple = [0, 0, 1, 1, 0, 0, 0]
@@ -105,25 +122,29 @@ for doc, selected_doc, start_pos, end_pos, feats in zip(nlp.pipe(validation_sent
 
 dictionary = Dictionary([["<OOV>", "<PAD>"]])
 
-x_train = [[token.lower_ for token in doc] for doc in train_docs]
+x_train = [[remove_duplicates_char(token.lower_) for token in doc] for doc in train_docs]
 train_dictionary = Dictionary(x_train)
 
-train_selected_dictionary = Dictionary([[token.lower_ for token in doc] for doc in train_selected_docs])
+train_selected_dictionary = Dictionary([[remove_duplicates_char(token.lower_) for token in doc]
+                                        for doc in train_selected_docs])
 train_dictionary.filter_extremes(no_above=0.6, no_below=10)
 dictionary.merge_with(train_selected_dictionary)
 dictionary.merge_with(train_dictionary)
 dictionary.save(join(stg.MODELS_DIR, 'rnn_spacy_tokens_dict'))
 
-x_train_indexed = [[dictionary.token2id.get(token.lower_, 0) for token in doc] for doc in train_docs]
-x_validation_indexed = [[dictionary.token2id.get(token.lower_, 0) for token in doc] for doc in validation_docs]
+x_train_indexed = [[dictionary.token2id.get(remove_duplicates_char(token.lower_), 0) for token in doc]
+                   for doc in train_docs]
+x_validation_indexed = [[dictionary.token2id.get(remove_duplicates_char(token.lower_), 0) for token in doc]
+                        for doc in validation_docs]
 
 embedding_matrix = WordEmbedding(dictionary_token2id=dictionary.token2id).global_embedding_matrix
 print(embedding_matrix.shape)
+logging.info(f'embedding shape: {embedding_matrix.shape}')
 
 BLSTM = BidirectionalLSTM(hidden_dim=128, word_embedding_initialization=embedding_matrix)
 
 print('---------------------------------------------------------------------------------------------------------------')
-print(BLSTM.model.summary())
+logging.info(f'BLSTM model: {BLSTM.model.summary()}')
 print('---------------------------------------------------------------------------------------------------------------')
 
 callbacks = ModelCheckpoint(join(stg.MODELS_DIR, "rnn_spacy_tokens.hdf5"),
@@ -158,6 +179,7 @@ train_score = jaccard_score(y_true=train_all_sentiments[stg.SELECTED_TEXT_COL],
 
 print('--------------------------')
 print(f'train score: {train_score}')
+logging.info(f'train score: {train_score}')
 print('--------------------------')
 
 validation_pred = BLSTM.predict(X_test_word=x_validation_indexed, X_test_features=validation_extra_features)
@@ -183,4 +205,5 @@ validation_score = jaccard_score(y_true=validation_all_sentiments[stg.SELECTED_T
 
 print('--------------------------')
 print(f'validation score: {validation_score}')
+logging.info(f'validation score: {train_score}')
 print('--------------------------')
