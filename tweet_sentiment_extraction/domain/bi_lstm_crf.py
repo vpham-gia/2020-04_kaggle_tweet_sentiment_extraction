@@ -74,7 +74,6 @@ class BidirectionalLSTMCRF:
 
         layer_crf_dense = Dense(self.N_TARGET, activation='softmax')(bilstm_with_extra_features)
         output_crf = self.layer_crf(layer_crf_dense)
-#
         model = Model(inputs=[inputs, extra_features], outputs=output_crf)
         model.compile(optimizer=Adam(lr=0.001), loss=self.layer_crf.loss, metrics=[self.layer_crf.viterbi_accuracy])
         return model
@@ -134,6 +133,7 @@ class BidirectionalLSTMCRF:
 
         unpaded_preds = [pred[:len(x)] for pred, x in zip(predictions, X_test_word)]
         return unpaded_preds
+
 
 if __name__ == "__main__":
     word_embedding = np.ones((20, 500))
