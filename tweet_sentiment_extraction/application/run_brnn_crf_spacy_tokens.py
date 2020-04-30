@@ -11,16 +11,16 @@ import spacy
 import re
 
 from tweet_sentiment_extraction import settings as stg
-from tweet_sentiment_extraction.domain.bi_lstm import BidirectionalLSTM
+from tweet_sentiment_extraction.domain.bi_lstm_crf import BidirectionalLSTMCRF
 from tweet_sentiment_extraction.domain.dataset_builder import Featurizer
 from tweet_sentiment_extraction.domain.word_embedding import WordEmbedding
 from tweet_sentiment_extraction.infrastructure.sentence_cleaner import SentencePreprocessor
 from tweet_sentiment_extraction.utils.metrics import jaccard_score
 
-embedding_matrix = np.load(join('data', 'word_embeddings', 'init_embedding_matrix.npy'))
-print(embedding_matrix.shape)
-logging.info(f'embedding shape: {embedding_matrix.shape}')
-BLSTM = BidirectionalLSTM(hidden_dim=64, word_embedding_initialization=embedding_matrix)
+#embedding_matrix = np.load(join('data', 'word_embeddings', 'init_embedding_matrix.npy'))
+#print(embedding_matrix.shape)
+#logging.info(f'embedding shape: {embedding_matrix.shape}')
+#BLSTM = BidirectionalLSTMCRF(hidden_dim=64, word_embedding_initialization=embedding_matrix)
 
 analyzer = SentimentIntensityAnalyzer()
 
@@ -167,11 +167,11 @@ x_train_indexed = [[dictionary.token2id.get(remove_duplicates_char(token.lower_)
 x_validation_indexed = [[dictionary.token2id.get(remove_duplicates_char(token.lower_), 0) for token in doc]
                         for doc in validation_docs]
 
-# embedding_matrix = WordEmbedding(dictionary_token2id=dictionary.token2id).global_embedding_matrix
-# np.save(join('data', 'word_embeddings', 'init_embedding_matrix.npy'), embedding_matrix)
-# print(embedding_matrix.shape)
-# logging.info(f'embedding shape: {embedding_matrix.shape}')
-# BLSTM = BidirectionalLSTM(hidden_dim=64, word_embedding_initialization=embedding_matrix)
+embedding_matrix = WordEmbedding(dictionary_token2id=dictionary.token2id).global_embedding_matrix
+np.save(join('data', 'word_embeddings', 'init_embedding_matrix.npy'), embedding_matrix)
+print(embedding_matrix.shape)
+logging.info(f'embedding shape: {embedding_matrix.shape}')
+BLSTM = BidirectionalLSTMCRF(hidden_dim=64, word_embedding_initialization=embedding_matrix)
 
 print('---------------------------------------------------------------------------------------------------------------')
 logging.info(f'BLSTM model: {BLSTM.model.summary()}')
