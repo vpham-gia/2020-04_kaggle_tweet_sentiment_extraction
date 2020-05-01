@@ -12,6 +12,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 class BidirectionalLSTM:
     """Builds a bidirectional LSTM to perform predictions.
+
     Attributes
     ----------
     LENGTH_OF_LONGEST_SENTENCE: integer
@@ -38,6 +39,7 @@ class BidirectionalLSTM:
     @property
     def _model(self):
         """Model structure.
+
         Returns
         -------
         model: tensorflow.keras.Model
@@ -47,11 +49,13 @@ class BidirectionalLSTM:
         embedding = Embedding(input_dim=self.word_embedding_initialization.shape[0],
                               output_dim=self.word_embedding_initialization.shape[1],
                               weights=[self.word_embedding_initialization],
-                              trainable=True)(inputs)  # change trainable to False
+                              trainable=False)(inputs)  # change trainable to False
+
+        dim_red = TimeDistributed(Dense(units=100, activation='relu'))(embedding)
 
         extra_features = Input(shape=(self.LENGTH_OF_LONGEST_SENTENCE, self.NUMBER_EXTRA_FEATURES),
                                name='extra_features')
-        embedding_with_extra_features = concatenate([embedding, extra_features])
+        embedding_with_extra_features = concatenate([dim_red, extra_features])
 
         bidirection_lstm = Bidirectional(LSTM(self.hidden_dim,
                                               return_sequences=True,
@@ -62,11 +66,12 @@ class BidirectionalLSTM:
         prediction = TimeDistributed(Dense(1, activation="sigmoid"))(dropout)
 
         model = Model(inputs=[inputs, extra_features], outputs=prediction)
-        model.compile(optimizer=Adam(lr=0.001), loss='binary_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=Adam(lr=0.01), loss='binary_crossentropy', metrics=['accuracy'])
         return model
 
     def load_model_weights(self, model_weights_path):
         """Load previously saved weights.
+
         Parameters
         ----------
         model_weights_path: string
@@ -75,6 +80,7 @@ class BidirectionalLSTM:
 
     def fit(self, X_word_indexes, X_features, y, pad_sentences=True, **kwargs):
         """Override fit method.
+
         Parameters
         ----------
         X: array-like of shape (n_samples,) containing list of tokens indexes
@@ -96,6 +102,7 @@ class BidirectionalLSTM:
 
     def predict(self, X_test_word, X_test_features, pad_sentences=True):
         """Override predict method.
+
         Parameters
         ----------
         X_test: array-like of shape (n_samples,) containing list of tokens indexes

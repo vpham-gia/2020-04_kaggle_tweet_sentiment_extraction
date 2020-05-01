@@ -4,18 +4,16 @@ import numpy as np
 THRESH = 0.5
 
 
-def patch_whitespace(doc, scores):
+def patch_whitespace(tokens, scores):
     labels = [True if score >= THRESH else False for score in scores]
+    patched_labels = labels
 
-    right_propagation = np.logical_and(pd.Series(labels).shift(1).fillna(False),
-                                       pd.Series([token.whitespace_ != ' ' for token in doc]).shift(1).fillna(False))
+    for position in range(len(patched_labels) - 1):
+        if labels[position] and tokens[position].whitespace_ == '':
+            patched_labels[position + 1] = True
 
-    right_propagation2 = np.logical_and(pd.Series(labels).shift(2).fillna(False),
-                                        pd.Series([token.whitespace_ != ' ' for token in doc]).shift(2).fillna(False))
+    for position in range(len(patched_labels) - 1, 0, -1):
+        if labels[position] and tokens[position - 1].whitespace_ == '':
+            patched_labels[position - 1] = True
 
-    left_propagation = np.logical_and(pd.Series(labels).shift(-1).fillna(False),
-                                      pd.Series([token.whitespace_ != ' ' for token in doc]).fillna(False))
-
-    labels = np.logical_or.reduce((labels, right_propagation, right_propagation2, left_propagation))
-    return ''.join([token.text_with_ws for token, label in zip(doc, labels) if label])
-
+    return ''.join([token.text_with_ws for token, label in zip(tokens, labels) if label])

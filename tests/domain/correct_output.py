@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 import spacy
 
-from tweet_sentiment_extraction.domain.correct_output import get_neighbors_until_space
+from tweet_sentiment_extraction.domain.correct_output import patch_whitespace
 
 
 nlp = spacy.load('en_core_web_md')
@@ -27,10 +27,10 @@ wanted3 = 'famous!! #famous ##sofamous'
 np.array(doc3)[np.array(scores3) > 0.5]
 
 
-def test_get_neighbors_until_space():
-    corrected1 = get_neighbors_until_space(doc1)
+def test_patch_whitespace():
+    corrected1 = patch_whitespace(doc1, scores1)
     assert corrected1 == wanted1
-    corrected2 = get_neighbors_until_space(doc2)
+    corrected2 = patch_whitespace(doc2, scores2)
     assert corrected2 == wanted2
-    corrected3 = get_neighbors_until_space(doc3)
+    corrected3 = patch_whitespace(doc3, scores3)
     assert corrected3 == wanted3
