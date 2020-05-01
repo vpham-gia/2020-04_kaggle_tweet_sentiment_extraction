@@ -4,10 +4,13 @@ Classes
 BidirectionalLSTM
 """
 from tensorflow.keras import regularizers, Model
+from tensorflow.keras.metrics import Precision
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, TimeDistributed, SpatialDropout1D, Dense, Input, Bidirectional, LSTM, concatenate
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+import tensorflow_addons as tfa
 
 
 class BidirectionalLSTM:
@@ -66,7 +69,9 @@ class BidirectionalLSTM:
         prediction = TimeDistributed(Dense(1, activation="sigmoid"))(dropout)
 
         model = Model(inputs=[inputs, extra_features], outputs=prediction)
-        model.compile(optimizer=Adam(lr=0.01), loss='binary_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=Adam(lr=0.01),
+                      loss='binary_crossentropy',
+                      metrics=['accuracy'])
         return model
 
     def load_model_weights(self, model_weights_path):
