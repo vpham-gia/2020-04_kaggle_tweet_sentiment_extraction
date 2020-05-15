@@ -5,6 +5,8 @@ import logging
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+import argparse
+import joblib
 import numpy as np
 import pandas as pd
 import spacy
@@ -19,6 +21,13 @@ from tweet_sentiment_extraction.utils.metrics import jaccard_score
 from tweet_sentiment_extraction.domain.correct_output import patch_whitespace
 
 analyzer = SentimentIntensityAnalyzer()
+
+PARSER = argparse.ArgumentParser(description='Parser for Tweet Extractor project.')
+
+PARSER.add_argument('--load_embedding_matrix', '-load_matrix', help='Boolean to load existing embedding matrix.',
+                    type=str, choices=['y', 'n'], default='n')
+
+ARGS = PARSER.parse_args()
 
 train = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'train.csv')).dropna(subset=[stg.TEXT_COL])
 validation = pd.read_csv(join(stg.PROCESSED_DATA_DIR, 'validation.csv'))
@@ -115,11 +124,6 @@ for doc, selected_doc, start_pos, end_pos, feats in zip(nlp.pipe(validation_sent
     validation_extra_features.append([feats + token_feat for token_feat in token_feats])
 
 logging.info('Extra features created')
-# text = "Hi, I'm late. Soooory "
-# list(nlp(text))
-# labels_exemple = [0, 0, 1, 1, 0, 0, 0]
-# labels_exemple = [0, 0, 1, 0, 0, 0, 0]
-# labels_exemple = [0, 0, 0, 1, 0, 0, 0]
 
 dictionary = Dictionary([["<OOV>", "<PAD>"]])
 
@@ -138,7 +142,14 @@ x_train_indexed = [[dictionary.token2id.get(remove_duplicates_char(token.lower_)
 x_validation_indexed = [[dictionary.token2id.get(remove_duplicates_char(token.lower_), 0) for token in doc]
                         for doc in validation_docs]
 
-embedding_matrix = WordEmbedding(dictionary_token2id=dictionary.token2id).global_embedding_matrix
+if ARGS.load_embedding_matrix == 'y':
+    embedding_matrix = joblib.load(filename=join(stg.MODELS_DIR, 'embedding_matrix'))
+else:
+    print('Computing embedding matrix from scratch ..')
+    embedding_matrix = WordEmbedding(dictionary_token2id=dictionary.token2id).global_embedding_matrix
+    joblib.dump(value=embedding_matrix, filename=join(stg.MODELS_DIR, 'embedding_matrix'))
+    print('.. Done')
+
 print(embedding_matrix.shape)
 logging.info(f'embedding shape: {embedding_matrix.shape}')
 
