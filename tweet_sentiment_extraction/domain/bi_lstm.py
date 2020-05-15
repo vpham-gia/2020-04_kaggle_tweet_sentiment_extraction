@@ -12,6 +12,8 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 import tensorflow_addons as tfa
 
+from tweet_sentiment_extraction.utils.metrics import f1_m, recall_m, precision_m
+
 
 class BidirectionalLSTM:
     """Builds a bidirectional LSTM to perform predictions.
@@ -69,9 +71,10 @@ class BidirectionalLSTM:
         prediction = TimeDistributed(Dense(1, activation="sigmoid"))(dropout)
 
         model = Model(inputs=[inputs, extra_features], outputs=prediction)
-        model.compile(optimizer=Adam(lr=0.01),
+        model.compile(optimizer=Adam(lr=0.001),
                       loss='binary_crossentropy',
-                      metrics=['accuracy'])
+         #            metrics=['accuracy'])
+                      metrics=[f1_m])
         return model
 
     def load_model_weights(self, model_weights_path):
