@@ -1,4 +1,5 @@
 """Recurrent neural network models.
+
 Classes
 -------
 BidirectionalLSTM
@@ -67,14 +68,14 @@ class BidirectionalLSTM:
                                               kernel_regularizer=regularizers.l2(0.01)))(embedding_with_extra_features)
 
         dropout = SpatialDropout1D(rate=0.2)(bidirection_lstm)
-        # prediction = Dense(1, activation='sigmoid')(dropout)
+
         prediction = TimeDistributed(Dense(1, activation="sigmoid"))(dropout)
 
         model = Model(inputs=[inputs, extra_features], outputs=prediction)
         model.compile(optimizer=Adam(lr=0.001),
                       loss='binary_crossentropy',
-         #            metrics=['accuracy'])
-                      metrics=[f1_m])
+                      metrics=['accuracy'])
+
         return model
 
     def load_model_weights(self, model_weights_path):

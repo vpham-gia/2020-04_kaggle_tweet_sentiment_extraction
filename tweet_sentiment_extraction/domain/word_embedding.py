@@ -95,5 +95,3 @@ if __name__ == "__main__":
     from gensim.corpora import Dictionary
     vocabulary = Dictionary([["I", "love"], ["chocolate"]])
     embedding_matrix = WordEmbedding(vocabulary.token2id)
-
-

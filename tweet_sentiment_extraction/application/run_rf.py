@@ -43,7 +43,7 @@ nlp = spacy.load('en_core_web_md')
 stop_words = nlp.Defaults.stop_words
 print(f'Shape: {train_dataset.shape}')
 train_dataset_no_stopwords = (
-    train_dataset.assign(is_stopword=lambda df: df[stg.WORD_COL].apply(lambda x: x in stop_words))\
+    train_dataset.assign(is_stopword=lambda df: df[stg.WORD_COL].apply(lambda x: x in stop_words))
                  .query('not is_stopword')
 )
 print(f'Shape: {train_dataset_no_stopwords.shape}')
